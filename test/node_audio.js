@@ -2,6 +2,9 @@
 const fs = require('fs'), path = require('path'), { execSync } = require('child_process');
 require('../src/util.js'); require('../src/lexicon.js'); require('../src/audio.js');
 const PV = globalThis.PV;
+const os = require('os');
+let fails = 0;
+const check = (cond, msg) => { if (cond) console.log('  ✓', msg); else { fails++; console.log('  ✗', msg); } };
 
 function readWav(file) {
   const b = fs.readFileSync(file);
@@ -14,19 +17,28 @@ function readWav(file) {
 }
 
 const dir = path.join(__dirname, 'assets/music');
+if (!fs.existsSync(dir)) { console.log('Нет test/assets/music — сначала: cd test && python3 gen_music.py'); process.exit(0); }
 for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.wav')).sort()) {
   const { chs, sr } = readWav(path.join(dir, f));
   const t = Date.now();
   const A = PV.Audio.analyzeSamples(chs, sr, { excerptLen: 30 });
   const ms = Date.now() - t;
   const ex = PV.Audio.finalizeExcerpt(A, A.start, 30);
+  const want = +f.match(/_(\d+)\.wav$/)[1];
   console.log(`${f.padEnd(26)} bpm=${A.bpm} (conf ${A.bpmConf}) ${A.keyName} (mode conf ${A.modeConf}) loud=${A.loud} onsetN=${A.onsetN} bright=${A.brightness} dyn=${A.dynamics}dB start=${A.start.toFixed(2)} beats=${ex.beats.length} env=${ex.env.length} [${ms} ms]`);
+  check(Math.abs(A.bpm - want) <= 2, `темп ${want} ±2 BPM`);
+  check(A.modeConf >= 0 && A.modeConf <= 1, 'уверенность лада в [0, 1]');
 }
 
 // срез MP3
 const mp3 = fs.readFileSync(path.join(dir, 'ballad_C_major_72.mp3'));
+const SLICE = path.join(os.tmpdir(), 'pv-slice.mp3');
 const s = PV.Audio.mp3Slice(new Uint8Array(mp3), 20, 50);
-fs.writeFileSync('/tmp/slice.mp3', Buffer.from(s.data));
+fs.writeFileSync(SLICE, Buffer.from(s.data));
 console.log('mp3 slice t0', s.t0.toFixed(3), 't1', s.t1.toFixed(3), 'bytes', s.data.length);
-console.log(execSync('ffprobe -v error -show_entries format=duration -of csv=p=0 /tmp/slice.mp3').toString().trim(), 's по ffprobe');
-console.log(execSync('ffmpeg -v error -i /tmp/slice.mp3 -f null - 2>&1 || true').toString().trim() || 'декодируется без ошибок');
+console.log(execSync('ffprobe -v error -show_entries format=duration -of csv=p=0 ' + SLICE + '').toString().trim(), 's по ffprobe');
+console.log(execSync('ffmpeg -v error -i ' + SLICE + ' -f null - 2>&1 || true').toString().trim() || 'декодируется без ошибок');
+const sliceDur = +execSync(`ffprobe -v error -show_entries format=duration -of csv=p=0 "${SLICE}"`).toString();
+check(Math.abs(sliceDur - 30) < 0.2, 'срез MP3 длится 30 с');
+console.log(fails ? `\nПровалено проверок: ${fails}` : '\nВсе проверки пройдены');
+process.exitCode = fails ? 1 : 0;

@@ -183,20 +183,31 @@ function chroma(x, sr, a, b) {
   const sm = mid.reduce((s, v) => s + v, 0) || 1, sb = bass.reduce((s, v) => s + v, 0) || 1;
   const ch = new Float64Array(12);
   for (let i = 0; i < 12; i++) ch[i] = mid[i] / sm + 0.9 * bass[i] / sb;
+  ch.bass = Array.from(bass, (v) => v / sb);
   return ch;
 }
 
 function detectKey(ch) {
-  let bMaj = -2, kMaj = 0, bMin = -2, kMin = 0;
+  /* корреляция с профилями Крумхансла для всех 24 тональностей; бас на тонике — подсказка,
+     без неё параллельные мажор и минор (до мажор / ля минор) почти неразличимы */
+  const bass = ch.bass || new Array(12).fill(1 / 12), BW = 0.3;
+  const cand = [];
   for (let t = 0; t < 12; t++) {
     const rMaj = [], rMin = [];
     for (let p = 0; p < 12; p++) { rMaj.push(MAJ[U.mod(p - t, 12)]); rMin.push(MIN[U.mod(p - t, 12)]); }
     const cj = pearson(ch, rMaj), cn = pearson(ch, rMin);
-    if (cj > bMaj) { bMaj = cj; kMaj = t; }
-    if (cn > bMin) { bMin = cn; kMin = t; }
+    cand.push({ mode: 'major', tonic: t, corr: cj, score: cj + BW * bass[t] });
+    cand.push({ mode: 'minor', tonic: t, corr: cn, score: cn + BW * bass[t] });
   }
-  const mode = bMaj >= bMin ? 'major' : 'minor', tonic = mode === 'major' ? kMaj : kMin;
-  return { mode, tonic, modeConf: U.clamp(Math.abs(bMaj - bMin) / 0.12), keyName: `${NOTE_RU[tonic]} ${mode === 'major' ? 'мажор' : 'минор'}`, keyCorr: Math.max(bMaj, bMin) };
+  cand.sort((a, b) => b.score - a.score);
+  const best = cand[0];
+  const rival = cand.find((c) => c.mode !== best.mode);
+  let conf = U.clamp((best.score - rival.score) / 0.12);
+  /* параллельная тональность (общий звукоряд) — честно снижаем уверенность */
+  const rel = best.mode === 'major' ? U.mod(best.tonic + 9, 12) : U.mod(best.tonic + 3, 12);
+  if (rival.tonic === rel) conf = Math.min(conf, 0.4 + 0.6 * U.clamp((best.score - rival.score) / 0.3));
+  const { mode, tonic } = best;
+  return { mode, tonic, modeConf: conf, keyName: `${NOTE_RU[tonic]} ${mode === 'major' ? 'мажор' : 'минор'}`, keyCorr: best.corr };
 }
 
 function percentile(arr, p) { const a = Array.from(arr).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(p * a.length))] : 0; }

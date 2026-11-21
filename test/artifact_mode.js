@@ -1,11 +1,11 @@
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 (async () => {
-  const browser = await chromium.launchPersistentContext('/tmp/pv-profile', { executablePath: '/usr/bin/google-chrome', viewport: { width: 1300, height: 950 } });
+  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile'), { viewport: { width: 1300, height: 950 } });
   const page = browser.pages()[0] || await browser.newPage();
   // имитация рантайма артефакта: claude.use('downloads') → save()
   await page.addInitScript(() => { window.__saved = []; window.claude = { use: async (n) => (n === 'downloads' ? { save: async ({ filename, data }) => { window.__saved.push({ filename, size: data.size || data.length }); return { status: 'saved' }; } } : null) }; });
   const errs = []; page.on('pageerror', e => errs.push(e.message));
-  await page.goto('http://localhost:8765/index.html');
+  await page.goto(`http://localhost:${process.env.PORT || 8765}/index.html`);
   await page.waitForSelector('#arch-grid .day-card');
   await page.click('.day-card:has-text("Осенний парк")');
   await page.waitForSelector('#v-day:not([hidden])'); await page.waitForSelector('#busy', { state: 'hidden' });

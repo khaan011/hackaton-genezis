@@ -181,7 +181,8 @@ class Renderer {
   /* ---------- цвета текста по фону ---------- */
   pageColor() { return this.S.bg || this.S.paper; }
   inkColor() { const bg = this.pageColor(); return U.luma(bg) < 0.5 ? [240, 235, 225] : [30, 27, 24]; }
-  softColor() { const bg = this.pageColor(); return U.luma(bg) < 0.5 ? [190, 186, 178] : [105, 99, 92]; }
+  /* приглушённый цвет служебных строк: 72% цвета текста и 28% цвета бумаги — читается на любом фоне режима */
+  softColor() { return U.mix(this.inkColor(), this.pageColor(), 0.28); }
 
   /* ---------- постоянные слои ---------- */
   makePaper() {
@@ -368,8 +369,8 @@ class Renderer {
     const S = this.S, d = this.day, ink = this.inkColor(), soft = this.softColor();
     ctx.save();
     ctx.globalAlpha = U.clamp(t / 0.8);
-    setFont(ctx, 'mono', 28, 400); setSpacing(ctx, 2);
-    ctx.fillStyle = U.css(soft, 0.95); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
+    setFont(ctx, 'mono', 30, 700); setSpacing(ctx, 2);
+    ctx.fillStyle = U.css(soft, 1); ctx.textBaseline = 'alphabetic'; ctx.textAlign = 'left';
     ctx.fillText(`${U.dateStamp(d.date)} · ${U.weekday(d.date)}`, LAY.M, 112);
     ctx.textAlign = 'right';
     ctx.fillText(`№ ${String(d.number || 1).padStart(3, '0')}`, W - LAY.M, 112);

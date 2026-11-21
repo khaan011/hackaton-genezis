@@ -1,9 +1,9 @@
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
-  const browser = await chromium.launchPersistentContext('/tmp/pv-profile', { executablePath: '/usr/bin/google-chrome', viewport: { width: 1200, height: 900 }, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile'), { viewport: { width: 1200, height: 900 }, args: ['--autoplay-policy=no-user-gesture-required'] });
   const page = browser.pages()[0] || await browser.newPage();
-  await page.goto('http://localhost:8765/index.html');
+  await page.goto(`http://localhost:${process.env.PORT || 8765}/index.html`);
   await page.waitForSelector('#arch-grid .day-card');
   const ids = await page.evaluate(async () => (await PV.Store.all()).map(d => ({ id: d.id, reg: d.summary.register, title: d.title })));
   fs.mkdirSync('out/videos', { recursive: true });

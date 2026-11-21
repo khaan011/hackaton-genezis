@@ -1,11 +1,11 @@
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const fs = require('fs');
 (async () => {
-  fs.rmSync('/tmp/pv-profile-link', { recursive: true, force: true });
-  const browser = await chromium.launchPersistentContext('/tmp/pv-profile-link', { executablePath: '/usr/bin/google-chrome', viewport: { width: 1440, height: 1000 } });
+  fs.rmSync(require('path').join(require('os').tmpdir(), 'pv-profile-link'), { recursive: true, force: true });
+  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile-link'), { viewport: { width: 1440, height: 1000 } });
   const page = browser.pages()[0] || await browser.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource|youtube|ERR_/i.test(m.text())) errs.push(m.text()); });
-  await page.goto('http://localhost:8765/index.html');
+  await page.goto(`http://localhost:${process.env.PORT || 8765}/index.html`);
   await page.waitForSelector('#arch-grid .day-card', { timeout: 30000 });
   const demoCount = await page.$$eval('#arch-grid .day-card', els => els.length);
   const toast = await page.textContent('#toast');

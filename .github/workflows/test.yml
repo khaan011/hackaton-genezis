@@ -1,0 +1,23 @@
+name: Проверки
+on: [push, pull_request]
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 22
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Сборка совпадает с index.html в корне
+        run: python3 build.py && cmp build/index.html index.html
+      - name: Текст, названия и выбор режимов
+        run: node test/node_text.js
+      - name: Аудиоанализ на синтезированных песнях
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
+          pip install -q numpy pillow
+          (cd test && python3 gen_music.py)
+          node test/node_audio.js

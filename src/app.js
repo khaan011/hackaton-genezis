@@ -140,10 +140,14 @@ async function addPhotos(files) {
   renderThumbs(); validate();
 }
 function renderThumbs() {
-  const box = $('#f-thumbs'); box.innerHTML = '';
+  const box = $('#f-thumbs');
+  (state.thumbUrls || []).forEach((u) => URL.revokeObjectURL(u));
+  state.thumbUrls = [];
+  box.innerHTML = '';
   state.form.photos.forEach((p, i) => {
     const d = document.createElement('div'); d.className = 'thumb';
-    d.innerHTML = `<img alt="" src="${URL.createObjectURL(p.blob)}"><div class="pal">${p.a.palette.slice(0, 5).map((c) => `<i style="background:${U.hex(c.rgb)}"></i>`).join('')}</div><button aria-label="Убрать фото">×</button>`;
+    const url = URL.createObjectURL(p.blob); state.thumbUrls.push(url);
+    d.innerHTML = `<img alt="" src="${url}"><div class="pal">${p.a.palette.slice(0, 5).map((c) => `<i style="background:${U.hex(c.rgb)}"></i>`).join('')}</div><button aria-label="Убрать фото">×</button>`;
     d.querySelector('button').onclick = () => { state.form.photos.splice(i, 1); renderThumbs(); validate(); };
     box.appendChild(d);
   });
@@ -316,7 +320,7 @@ async function buildDay() {
       const A = f.song.A;
       ex = PV.Audio.makeExcerpt(f.song.loaded, A.start, Math.min(A.duration - A.start, dur + 1.5));
       const fin = PV.Audio.finalizeExcerpt(A, ex.t0, ex.dur);
-      track = { ...fin, bpm: M.bpm, keyName: M.keyName, label: meta.label, dur: ex.dur };
+      track = { ...fin, bpm: M.bpm, keyName: (M.modeConf ?? 1) >= 0.5 ? M.keyName : null, label: meta.label, dur: ex.dur };
     } else {
       track = { env: M.env, envRate: M.envRate, beats: M.beats, beatStrength: M.beatStrength, bpm: M.bpm, keyName: null, label: meta.label, dur: 45 };
     }
@@ -374,6 +378,7 @@ async function openDayById(id) {
   const day = await PV.Store.get(id);
   if (!day) return toast('Этот день не найден');
   busy(true, 'Открываю страницу дня…', 0.1);
+  $('#d-tune').open = false;
   try { await openDay(day, { onProgress: (p) => busy(true, 'Открываю страницу дня…', 0.1 + 0.85 * p) }); } catch (e) { console.error(e); toast('Не удалось открыть день: ' + e.message); } finally { busy(false); }
 }
 async function openDay(day, opts = {}) {
@@ -573,12 +578,19 @@ async function importDiary(blob, opts = {}) {
   if (!files['diary.json']) throw new Error('В архиве нет diary.json');
   const data = JSON.parse(new TextDecoder().decode(files['diary.json']));
   const mk = (name, type) => (name && files[name] ? new Blob([files[name]], { type }) : null);
+  const VOICE_TYPE = { m4a: 'audio/mp4', mp4: 'audio/mp4', ogg: 'audio/ogg', webm: 'audio/webm' };
+  const existing = await PV.Store.all();
+  const used = new Map(existing.map((d) => [d.number, d.id]));
+  let top = existing.reduce((m, d) => Math.max(m, d.number || 0), 0);
   let n = 0;
   for (const rec of data.days || []) {
+    const owner = used.get(rec.number);
+    if (!rec.number || (owner && owner !== rec.id)) rec.number = Math.max(top, ...(data.days || []).map((d) => d.number || 0)) + 1;
+    used.set(rec.number, rec.id); top = Math.max(top, rec.number);
     rec.photos = rec.photos.map((p) => ({ ...p, blob: mk(p.file, 'image/jpeg') }));
     rec.song.excerpt = mk(rec.song.excerptFile, rec.song.excerptExt === 'mp3' ? 'audio/mpeg' : 'audio/wav');
     rec.cover = mk(rec.coverFile, 'image/jpeg');
-    if (rec.voice && rec.voice.file) rec.voice = { ext: rec.voice.ext, blob: mk(rec.voice.file, 'audio/webm') };
+    if (rec.voice && rec.voice.file) rec.voice = { ext: rec.voice.ext, blob: mk(rec.voice.file, VOICE_TYPE[rec.voice.ext] || 'audio/webm') };
     rec.video = null;
     if (opts.demo) rec.demo = true;
     await PV.Store.put(rec); n++;
@@ -694,7 +706,7 @@ async function init() {
   if (!days.length && location.protocol.startsWith('http')) {
     try {
       const r = await fetch('demo/diary.zip', { cache: 'no-store' });
-      if (r.ok) { const n = await importDiary(await r.blob(), { demo: true }); if (n) toast(`Загружен демо-дневник команды: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`); }
+      if (r.ok) { const n = await importDiary(await r.blob(), { demo: true }); if (n) toast(`Загружен демо-дневник: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`); }
     } catch (e) { /* демо нет — начнём с пустого дневника */ }
   }
   go('archive');

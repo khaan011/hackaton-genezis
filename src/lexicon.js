@@ -139,7 +139,8 @@ L.places = [
   { k: ['балкон'], nom: 'балкон', prep: 'на', noun: 'балконе', case: 'loc', g: 'm', cat: 'home' },
   { k: ['кухн'], nom: 'кухня', prep: 'на', noun: 'кухне', case: 'loc', g: 'f', cat: 'home' },
   { k: ['город', 'улиц', 'проспект'], nom: 'город', prep: 'в', noun: 'городе', case: 'loc', g: 'm', cat: 'city' },
-  { k: ['=дома', '=домой', '=доме', 'квартир'], nom: 'дом', prep: '', noun: 'дома', case: 'adv', g: 'm', cat: 'home' },
+  { k: ['=домой'], nom: 'дорога домой', prep: '', noun: 'по дороге домой', case: 'adv', g: 'f', cat: 'city' },
+  { k: ['=дома', '=доме', 'квартир'], nom: 'дом', prep: '', noun: 'дома', case: 'adv', g: 'm', cat: 'home' },
 ];
 L.who = [
   { k: ['девушк'], ins: 'с девушкой', pair: true },

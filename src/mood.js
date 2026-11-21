@@ -249,7 +249,7 @@ function explain(day, S) {
   const trans = { dissolve: 'мягкие наплывы', cut: 'склейки ровно в долю', pause: 'между кадрами пауза пустой страницы', drop: 'новый отпечаток падает на стопку', pop: 'кадры выпрыгивают на сильную долю' }[S.transition];
   if (M && M.source === 'audio') {
     const loud = M.loud > 0.6 ? 'плотная и громкая' : M.loud < 0.35 ? 'тихая' : 'средней громкости';
-    lines.push({ k: 'Музыка', t: `${Math.round(M.bpm)} BPM, ${M.keyName || KEYS_RU[M.mode]}, ${loud} → кадр меняется каждые ${beatsWord(S.beatsPerShot)} (≈${U.fmtNum(S.shotSec, 1)} с), ${trans}. Громкость песни в каждый момент управляет светом и «дыханием» кадра.` });
+    lines.push({ k: 'Музыка', t: `${Math.round(M.bpm)} BPM, ${M.keyName || KEYS_RU[M.mode]}${M.source === "audio" ? ((M.modeConf ?? 1) < 0.5 ? " (лад неоднозначен, оценка)" : " (оценка)") : ""}, ${loud} → кадр меняется каждые ${beatsWord(S.beatsPerShot)} (≈${U.fmtNum(S.shotSec, 1)} с), ${trans}. Громкость песни в каждый момент управляет светом и «дыханием» кадра.` });
   } else if (M) {
     lines.push({ k: 'Музыка', t: `по описанию: ${M.describeLabel} → темп ${Math.round(M.bpm)} BPM, кадр каждые ${beatsWord(S.beatsPerShot)} (≈${U.fmtNum(S.shotSec, 1)} с), ${trans}.` });
   }

@@ -1,5 +1,6 @@
+// Запуск: python3 -m http.server 8765 (в корне репозитория), затем node test/<файл>.js. Нужен Playwright: npm i -D playwright.
 // Сквозная проверка в Chrome: создаём дни через интерфейс, снимаем кадры, собираем ошибки.
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 const A = (p) => path.join(__dirname, 'assets', p);
 const OUT = path.join(__dirname, 'out');
@@ -16,13 +17,13 @@ const DAYS = [
 
 (async () => {
   const only = process.argv[2] ? process.argv[2].split(',') : null;
-  if (process.env.FRESH) fs.rmSync('/tmp/pv-profile', { recursive: true, force: true });
-  const browser = await chromium.launchPersistentContext('/tmp/pv-profile', { executablePath: '/usr/bin/google-chrome', viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
+  if (process.env.FRESH) fs.rmSync(require('path').join(require('os').tmpdir(), 'pv-profile'), { recursive: true, force: true });
+  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile'), { viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
   const page = browser.pages()[0] || await browser.newPage();
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
-  await page.goto('http://localhost:8765/index.html');
+  await page.goto(`http://localhost:${process.env.PORT || 8765}/index.html`);
   await page.waitForSelector('#v-archive:not([hidden])');
   const report = [];
   for (const d of DAYS) {

@@ -1,10 +1,10 @@
-const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const { chromium } = require('playwright');
 const fs = require('fs'), path = require('path');
 (async () => {
-  const browser = await chromium.launchPersistentContext('/tmp/pv-profile', { executablePath: '/usr/bin/google-chrome', viewport: { width: 1440, height: 1000 }, acceptDownloads: true, args: ['--autoplay-policy=no-user-gesture-required'] });
+  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile'), { viewport: { width: 1440, height: 1000 }, acceptDownloads: true, args: ['--autoplay-policy=no-user-gesture-required'] });
   const page = browser.pages()[0] || await browser.newPage();
   const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error') errs.push(m.text()); });
-  await page.goto('http://localhost:8765/index.html');
+  await page.goto(`http://localhost:${process.env.PORT || 8765}/index.html`);
   await page.waitForSelector('#arch-grid .day-card');
   await page.screenshot({ path: 'out/ui_archive.png' });
   await page.click('#arch-mode [data-mode="feed"]'); await page.waitForTimeout(300);

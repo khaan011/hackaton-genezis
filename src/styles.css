@@ -175,7 +175,7 @@ details.tune summary { cursor: pointer; font-weight: 600; }
 .pbar i { display: block; height: 100%; width: 0; background: var(--rust); transition: width .25s; }
 .spinner { width: 46px; height: 46px; margin: 0 auto; border-radius: 50%; border: 3px solid var(--paper2); border-top-color: var(--rust); animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
-#toast { position: fixed; left: 50%; bottom: 26px; transform: translateX(-50%); z-index: 60; background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: 12px; max-width: min(560px, 92vw); font-size: 14px; box-shadow: 0 16px 30px -12px rgba(0,0,0,.5); }
+#toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: 12px; max-width: min(560px, 92vw); font-size: 14px; box-shadow: 0 16px 30px -12px rgba(0,0,0,.5); }
 
 @media (max-width: 900px) {
   .day { grid-template-columns: 1fr; }
@@ -189,6 +189,9 @@ details.tune summary { cursor: pointer; font-weight: 600; }
   .nav { padding: 6px 8px; font-size: 13px; }
   .nav .long { display: none; } .nav .short { display: inline; }
   .bar nav .btn { padding: 8px 12px; font-size: 13px; }
-  .logo { font-size: 21px; }
+  .logo { font-size: 19px; }
+  .nav { white-space: nowrap; }
+  .bar nav .nav[data-go="archive"] { display: none; }
+  .bar nav .btn { padding: 8px 10px; white-space: nowrap; }
   .grid { grid-template-columns: repeat(2, 1fr); }
 }

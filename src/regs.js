@@ -255,6 +255,8 @@ PV.Regs.kandinsky = (R) => {
       });
       if (!cache.has(shot.j)) cache.set(shot.j, shapesFor(shot.j));
       const shapes = cache.get(shot.j), beat = S.beat, n = shapes.length;
+      /* фигуры живут только в зоне изображения: подписи, название и печать дня остаются читаемыми */
+      ctx.beginPath(); ctx.rect(0, 0, W, LAY.IMG_B + 36); ctx.clip();
       shapes.forEach((sh, i) => {
         const at = Math.floor(i * R.shots[0].dur / beat / n) * beat;
         const p = U.clamp((lt - at) / 0.22);
