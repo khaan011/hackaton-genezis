@@ -319,3 +319,123 @@ html[data-view="day"] #toast { top: 84px; bottom: auto; left: auto; right: clamp
 .want { border-color: rgba(169, 68, 43, .65) !important; box-shadow: 0 0 0 3px rgba(169, 68, 43, .1); }
 html[data-view="day"] #tour { left: auto; right: clamp(16px, 3vw, 32px); margin: 0; }
 @media (max-width: 900px) { html[data-view="day"] #tour { left: 0; right: 0; margin: 0 auto; } }
+
+/* =====================================================================
+   Телефон: нижняя панель под большим пальцем, кадр на весь экран, свайпы
+   ===================================================================== */
+.tabbar { display: none; }
+.day-nav { display: flex; align-items: center; justify-content: space-between; gap: 10px; margin-bottom: 10px; }
+.day-nav .btn.icon { width: 38px; height: 38px; font-size: 20px; line-height: 1; }
+.day-nav .btn:disabled { opacity: .35; cursor: default; }
+.day-nav .pos { font: 12px var(--mono); color: var(--soft); letter-spacing: .06em; }
+.day-nav .swipe-hint { display: none; }
+#d-frame { touch-action: pan-y; user-select: none; -webkit-user-select: none; }
+#d-frame.in-next { animation: in-next .45s cubic-bezier(.2, .8, .2, 1) both; }
+#d-frame.in-prev { animation: in-prev .45s cubic-bezier(.2, .8, .2, 1) both; }
+@keyframes in-next { from { opacity: .2; transform: translateX(40px) rotate(1.2deg); } }
+@keyframes in-prev { from { opacity: .2; transform: translateX(-40px) rotate(-1.2deg); } }
+.quick { display: none; }
+.fsteps { list-style: none; display: flex; gap: 8px; padding: 0; margin: 0 0 18px; flex-wrap: wrap; }
+.fsteps button { display: inline-flex; align-items: center; gap: 8px; border: 1px solid var(--line); background: rgba(255,253,249,.7); border-radius: 999px; padding: 7px 14px 7px 8px; font-weight: 600; font-size: 14px; cursor: pointer; color: var(--soft); }
+.fsteps i { width: 22px; height: 22px; border-radius: 50%; display: inline-flex; align-items: center; justify-content: center; font: 700 12px var(--mono); font-style: normal; background: var(--paper2); color: var(--soft); transition: background .3s, color .3s; }
+.fsteps .ok { color: var(--ink); border-color: rgba(30,27,24,.25); }
+.fsteps .ok i { background: var(--rust); color: #fff8f0; }
+.fsteps .ok i::before { content: "✓"; }
+.fsteps .ok i b { display: none; }
+.drop .tap { display: none; }
+@media (hover: none) and (pointer: coarse) {
+  .drop .hov { display: none; } .drop .tap { display: inline; }
+  .day-nav .swipe-hint { display: inline; }
+}
+
+@media (max-width: 700px) {
+  :root { --tabh: 66px; }
+  body { font-size: 16px; }
+  .bar { padding: 10px 16px; }
+  .bar nav { display: none; }
+  .bar .brand { margin: 0 auto 0 0; }
+  main { padding: 16px 16px calc(var(--tabh) + 40px + env(safe-area-inset-bottom)); }
+  h1 { font-size: 32px; }
+
+  /* нижняя панель */
+  .tabbar { display: grid; grid-template-columns: repeat(5, 1fr); align-items: end; position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+    height: calc(var(--tabh) + env(safe-area-inset-bottom)); padding: 0 6px env(safe-area-inset-bottom);
+    background: rgba(243, 239, 231, .86); backdrop-filter: blur(16px) saturate(1.3); border-top: 1px solid var(--line); }
+  .tab { display: flex; flex-direction: column; align-items: center; justify-content: center; gap: 3px; height: var(--tabh); border: 0; background: none; color: var(--soft); font: 600 11px var(--sans); cursor: pointer; padding: 0; -webkit-tap-highlight-color: transparent; }
+  .tab svg { width: 24px; height: 24px; fill: none; stroke: currentColor; stroke-width: 1.7; stroke-linecap: round; stroke-linejoin: round; }
+  .tab.on { color: rgb(var(--tint)); }
+  .tab.plus { position: relative; }
+  .tab.plus .plus-i { width: 58px; height: 58px; margin-top: -26px; border-radius: 50%; background: var(--rust); color: #fff8f0; display: flex; align-items: center; justify-content: center;
+    font: 300 34px/1 var(--sans); box-shadow: 0 10px 22px -8px rgba(140, 53, 32, .7), 0 0 0 5px var(--paper); transition: transform .15s; }
+  .tab.plus:active .plus-i { transform: scale(.94); }
+  .tab.plus span:last-child { margin-top: 2px; }
+
+  /* архив */
+  .arch-head { gap: 10px; margin-bottom: 14px; }
+  .arch-head h1 { flex: 1 1 auto; }
+  .arch-head .spacer { display: none; }
+  .arch-head [data-tour] { display: none; }
+  #arch-count { order: 2; flex-basis: 100%; margin-top: -6px; font-size: 14px; }
+  #arch-mode { order: 1; }
+  #btn-import, #btn-export { order: 3; padding: 6px 12px; font-size: 13px; }
+  .hello { padding: 14px; gap: 12px; font-size: 14px; }
+  .hello .btn { width: 100%; padding: 13px; font-size: 15px; }
+  .strip { overflow-x: auto; margin: 0 -16px 18px; padding: 4px 16px; scrollbar-width: none; }
+  .strip .bands { min-width: max(100%, calc(var(--n, 6) * 46px)); height: 22px; }
+  .grid { grid-template-columns: repeat(2, 1fr); gap: 18px 12px; }
+  .day-card .t { font-size: 15px; }
+  .day-card .m { font-size: 11px; }
+  .feed { grid-auto-columns: 72%; margin: 0 -16px; padding: 6px 16px 18px; }
+
+  /* форма: шаги, крупные зоны, кнопка всегда под пальцем */
+  .lede { font-size: 15px; margin-bottom: 14px; }
+  .new-head h1 { flex: 1 1 100%; }
+  #f-sample { width: 100%; padding: 11px; font-size: 14px; }
+  .fsteps { position: sticky; top: 58px; z-index: 5; margin: 0 -16px 14px; padding: 8px 16px; flex-wrap: nowrap; overflow-x: auto;
+    background: rgba(243, 239, 231, .9); backdrop-filter: blur(10px); scrollbar-width: none; }
+  .fsteps button { flex: 1 0 auto; justify-content: center; }
+  .form { grid-template-columns: 1fr; gap: 14px; }
+  .card { padding: 16px; scroll-margin-top: 120px; }
+  textarea { min-height: 200px; font-size: 18px; }
+  .drop { min-height: 96px; font-size: 16px; }
+  .thumbs { grid-template-columns: repeat(3, 1fr); }
+  .thumb button { width: 30px; height: 30px; line-height: 30px; font-size: 16px; }
+  input[type=date], input[type=url], input[type=text], input:not([type]) { padding: 12px; font-size: 16px; }
+  .pair .field { flex: 1 1 45%; }
+  #v-new > .actions { position: sticky; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 10px); z-index: 6; margin: 18px -6px 0; padding: 10px;
+    border-radius: 18px; background: rgba(255, 253, 249, .92); backdrop-filter: blur(12px); box-shadow: 0 16px 30px -18px rgba(40,25,10,.5); gap: 8px; }
+  #v-new > .actions .btn { width: 100%; }
+  #f-need { font-size: 13px; text-align: center; width: 100%; }
+
+  /* страница дня: кадр почти на весь экран, свайп листает дни */
+  .day { gap: 18px; }
+  .stage { margin: 0 -4px; }
+  .frame { width: min(100%, calc((100svh - 230px) * .5625)); height: auto; margin: 0 auto; border-radius: 16px; }
+  .frame .big-play span { width: 64px; height: 64px; }
+  .controls { margin-top: 10px; }
+  .controls2 { overflow-x: auto; flex-wrap: nowrap; margin: 10px -16px 0; padding: 0 16px 2px; scrollbar-width: none; }
+  .controls2 .btn { flex: 0 0 auto; }
+  .quick { display: flex; gap: 8px; margin: 12px 0 0; }
+  .quick button { flex: 1; border: 0; border-radius: 12px; padding: 12px 6px; font-weight: 600; font-size: 13px; background: rgb(var(--tint) / .1); color: rgb(var(--tint)); cursor: pointer; }
+  .panel h3, .reg, #d-tune, #d-files { scroll-margin-top: 70px; }
+  #d-why { scroll-margin-top: 110px; }
+  .axis, .tune-row { grid-template-columns: 86px 1fr; }
+  .tune-row { grid-template-columns: 86px 1fr 52px; }
+  .tune-row input { height: 28px; }
+  .title-in { font-size: 24px !important; }
+  #d-zip { flex: 1; padding: 13px; }
+
+  /* уведомления и экскурсия над нижней панелью */
+  #toast, html[data-view="day"] #toast { top: auto; left: 16px; right: 16px; transform: none; max-width: none; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 12px); }
+  #tour, html[data-view="day"] #tour { left: 0; right: 0; margin: 0 auto; bottom: calc(var(--tabh) + env(safe-area-inset-bottom) + 10px); }
+  .tour-card { padding: 12px 14px 10px; }
+  #tour-text { font-size: 16px; min-height: 0; margin: 6px 0 10px; }
+  html.touring .frame { width: min(100%, calc((100svh - 400px) * .5625)); }
+  .spot { scroll-margin-top: 70px; }
+  html.touring main { padding-bottom: 320px; }
+}
+/* на большом экране уведомление на странице дня — внизу справа, над панелью, ничего не закрывая */
+@media (min-width: 701px) {
+  html[data-view="day"] #toast { top: auto; bottom: 26px; left: auto; right: clamp(16px, 3vw, 32px); transform: none; max-width: 420px; }
+}
+.day > *, .stage, .panel { min-width: 0; }

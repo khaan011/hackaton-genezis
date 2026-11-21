@@ -80,7 +80,7 @@ function go(view) {
   state.view = view;
   document.documentElement.dataset.view = view;
   for (const v of ['archive', 'new', 'day', 'about']) $('#v-' + v).hidden = v !== view;
-  $$('.nav').forEach((b) => b.classList.toggle('on', b.dataset.go === view));
+  $$('.nav, .tab').forEach((b) => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === view));
   if (view !== 'day' && state.day) setGlow(state.day.summary, 'after');
   if (view === 'archive') renderArchive();
   if (view === 'new') { if (!state.form) resetForm(); }
@@ -111,6 +111,7 @@ async function renderArchive() {
   /* цвета дневника: каждый день — полоска из его собственной палитры, по порядку дат */
   const strip = $('#arch-strip');
   strip.hidden = n < 2;
+  strip.style.setProperty('--n', n);
   strip.querySelector('.bands').innerHTML = state.days.map((d) => `<button style="background:${swatch(d)}" data-id="${d.id}" title="${esc(d.title)} · ${esc(U.dateLong(d.date))}" aria-label="${esc(d.title)}"></button>`).join('');
   $$('#arch-strip .bands button').forEach((b) => { b.onclick = () => openDayById(b.dataset.id); });
   const grid = $('#arch-grid'), feed = $('#arch-feed');
@@ -308,6 +309,8 @@ function validate() {
   const unnamed = f.song.mode === 'file' && f.song.A && ((!ar && !ti) || fileLike);
   $('#f-song-warn').hidden = !unnamed;
   $('#f-artist').classList.toggle('want', !!unnamed); $('#f-title').classList.toggle('want', !!unnamed);
+  const okK = { text: $('#f-text').value.trim().length >= 10, photos: f.photos.length > 0, song: songOk };
+  $$('#f-steps [data-k]').forEach((b) => b.classList.toggle('ok', !!okK[b.dataset.k]));
   $('#f-go').disabled = need.length > 0;
   $('#f-need').textContent = need.length ? 'Осталось: ' + need.join(', ') : 'Всё готово';
 }
@@ -467,6 +470,7 @@ async function openDay(day, opts = {}) {
   });
   state.player.seek(Math.max(2.4, R.shots[0].start + Math.min(R.shots[0].dur * 0.7, 3.2)));
   fillPanel(day, S);
+  dayPos();
 }
 function setPlaying(on) {
   $('#d-play').textContent = on ? '❚❚' : '▶';
@@ -748,7 +752,6 @@ function bind() {
   $('#f-weather').onclick = fetchWeather;
   $('#f-go').onclick = buildDay;
   $('#d-play').onclick = togglePlay;
-  $('#d-frame').onclick = togglePlay;
   $('#d-seek').oninput = (e) => { if (state.player) state.player.seek((e.target.value / 1000) * state.player.duration); };
   $('#d-voice').onclick = playVoice;
   $('#d-rec').onclick = toggleRecord;
@@ -783,14 +786,24 @@ async function sampleSource() {
   }
   return days;
 }
+const SAMPLE_TEXT = {
+  monet: 'Утром пошли через парк пешком. Солнце сквозь жёлтые клёны, под ногами шуршат листья. Купили какао у метро и долго молча гуляли вдвоём — было тепло и спокойно.',
+  kandinsky: 'Последняя ночь хакатона. Вся команда в офисе, мониторы светятся, кофе за кофе, в наушниках электроника. Дедлайн утром, код наконец собрался.',
+  ma: 'Выходной. Проснулась рано, одна. За окном медленно падает снег, в квартире тишина. Пила чай у окна и ни о чём не думала.',
+  film: 'Приехали к бабушке на дачу, как в детстве. Яблоки, речка, вечером костёр с друзьями и старые песни под гитару. Вспоминали школу.',
+  matisse: 'Устроили другу сюрприз! Шарики, торт со свечами, все кричали «С днём рождения!», смеялись и танцевали до ночи.',
+  nocturne: 'Тяжёлый день. Вечером дождь, мокрые кроссовки, фонари расплываются в лужах. Шла домой одна и слушала грустную песню.',
+};
 async function fillSample() {
   const days = await sampleSource();
   if (!days.length) { toast('Примеров пока нет: запишите свой первый день.'); return; }
   state.sampleIdx = ((state.sampleIdx == null ? Math.floor(Math.random() * days.length) : state.sampleIdx) + 1) % days.length;
   const d = days[state.sampleIdx];
   resetForm();
-  $('#f-date').value = d.date;
-  $('#f-text').value = d.text;
+  $('#f-date').value = U.today();
+  /* свой текст примера, чтобы не повторять демо-день один в один */
+  const reg = (d.summary || {}).register;
+  $('#f-text').value = SAMPLE_TEXT[reg] || d.text;
   textHint();
   const [artist, title] = String(d.song.label || '').split(' — ');
   $('#f-artist').value = artist || ''; $('#f-title').value = title || '';
@@ -809,7 +822,7 @@ function spot(sel) {
   $$('.spot').forEach((e) => e.classList.remove('spot'));
   const el = sel && $(sel);
   if (!el) return false;
-  el.classList.add('spot'); el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  el.classList.add('spot'); el.scrollIntoView({ behavior: 'smooth', block: innerWidth <= 700 ? 'start' : 'center' });
   return true;
 }
 async function tourDay(prefer) {
@@ -870,6 +883,57 @@ function bindTour() {
   document.addEventListener('keydown', (e) => { if (tour.on && e.key === 'Escape') endTour(); });
 }
 
+/* ---------- соседние дни: стрелки, клавиши ← →, свайп по кадру ---------- */
+async function archiveOrder() { return [...(await PV.Store.all())].reverse(); }
+async function neighbour(step) {
+  if (!state.day) return;
+  const list = await archiveOrder();
+  const i = list.findIndex((d) => d.id === state.day.id);
+  const d = list[i + step];
+  if (!d) { toast(step > 0 ? 'Дальше дней нет' : 'Это первый день в архиве', 1800); return; }
+  $('#d-frame').dataset.swipe = step > 0 ? 'next' : 'prev';
+  await openDayById(d.id);
+}
+async function dayPos() {
+  if (!state.day) return;
+  const list = await archiveOrder();
+  const i = list.findIndex((d) => d.id === state.day.id);
+  $('#d-pos').textContent = `${i + 1} из ${list.length}`;
+  $('#d-prev').disabled = i <= 0; $('#d-next').disabled = i >= list.length - 1;
+  const fr = $('#d-frame');
+  if (fr.dataset.swipe) { fr.classList.remove('in-next', 'in-prev'); void fr.offsetWidth; fr.classList.add('in-' + fr.dataset.swipe); delete fr.dataset.swipe; }
+}
+function bindMobile() {
+  $('#d-prev').onclick = () => neighbour(-1);
+  $('#d-next').onclick = () => neighbour(1);
+  document.addEventListener('keydown', (e) => {
+    if (state.view !== 'day' || tour.on || /INPUT|TEXTAREA|SELECT/.test(document.activeElement.tagName)) return;
+    if (e.key === 'ArrowLeft') neighbour(-1);
+    if (e.key === 'ArrowRight') neighbour(1);
+  });
+  /* свайп по кадру листает дни, касание — пауза и play */
+  const fr = $('#d-frame');
+  let x0 = null, y0 = 0, swiped = false;
+  fr.addEventListener('pointerdown', (e) => { x0 = e.clientX; y0 = e.clientY; swiped = false; });
+  fr.addEventListener('pointerup', (e) => {
+    if (x0 == null) return;
+    const dx = e.clientX - x0, dy = e.clientY - y0; x0 = null;
+    if (Math.abs(dx) > 55 && Math.abs(dy) < 70) { swiped = true; neighbour(dx < 0 ? 1 : -1); }
+  });
+  fr.addEventListener('pointercancel', () => { x0 = null; });
+  fr.onclick = () => { if (swiped) { swiped = false; return; } togglePlay(); };
+  /* быстрые переходы внутри страницы */
+  $$('[data-jump]').forEach((b) => {
+    b.onclick = () => {
+      const t = $(b.dataset.jump); if (!t) return;
+      if (t.tagName === 'DETAILS') t.open = true;
+      t.scrollIntoView({ behavior: 'smooth', block: 'start' });
+      if (/^#f-/.test(b.dataset.jump) && t.focus && t.tagName === 'TEXTAREA') setTimeout(() => t.focus({ preventScroll: true }), 350);
+    };
+  });
+  $('#tab-feed').onclick = () => { go('archive'); const b = $('#arch-mode [data-mode="feed"]'); if (b) b.click(); $$('.tab').forEach((x) => x.classList.toggle('on', x.id === 'tab-feed')); };
+}
+
 async function init() {
   bind();
   try {
@@ -878,7 +942,7 @@ async function init() {
   let days = [];
   try { days = await PV.Store.all(); } catch (e) { days = []; }
   if (PV.Store.mode === 'memory') toast('Браузер не даёт хранить дневник: дни будут жить до закрытия вкладки. Чтобы сохранить, используйте «Экспорт дневника».', 9000);
-  bindTilt(); bindTour();
+  bindTilt(); bindTour(); bindMobile();
   go('archive');
   /* демо-дневник грузится в фоне и не уводит человека с экрана, который он уже открыл */
   if (!days.length && location.protocol.startsWith('http')) {
