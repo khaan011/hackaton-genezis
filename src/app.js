@@ -21,7 +21,34 @@ const newForm = () => ({ photos: [], song: { mode: 'file', loaded: null, A: null
 function busy(on, text, p) {
   $('#busy').hidden = !on;
   if (text) $('#busy-text').textContent = text;
-  if (p != null) $('#busy-bar').style.width = Math.round(U.clamp(p) * 100) + '%';
+  if (p != null) {
+    const v = U.clamp(p);
+    $('#busy-bar').style.width = Math.round(v * 100) + '%';
+    $('#busy').style.setProperty('--p', v.toFixed(3));
+    let cur = false;
+    $$('#busy-steps li').forEach((li) => {
+      const done = v >= +li.dataset.at;
+      li.classList.toggle('on', done);
+      li.classList.toggle('cur', !done && !cur);
+      if (!done) cur = true;
+    });
+  }
+}
+
+/* ---------- послевкусие: интерфейс окрашивается в цвета дня и хранит их оттенок после ухода ---------- */
+const rgbVar = (c) => (c ? `${Math.round(c[0])} ${Math.round(c[1])} ${Math.round(c[2])}` : null);
+function setGlow(sum, mode) {
+  const root = document.documentElement;
+  if (!sum) { root.classList.remove('has-glow', 'after'); return; }
+  const pal = (sum.palette && sum.palette.length ? sum.palette : [sum.accent]).filter(Boolean);
+  const a = sum.accent || pal[0] || [169, 68, 43];
+  const g = [a, pal[0] || a, pal[1] || pal[0] || a];
+  g.forEach((c, i) => root.style.setProperty(`--g${i + 1}`, rgbVar(c)));
+  /* акцент для текста темнее, чтобы читался на бумаге */
+  const lch = U.rgb2lch(a), tint = U.lch2rgb([Math.min(lch[0], 48), Math.max(lch[1], 30), lch[2]]);
+  root.style.setProperty('--tint', rgbVar(tint));
+  root.classList.add('has-glow');
+  root.classList.toggle('after', mode === 'after');
 }
 let toastT = 0;
 function toast(msg, ms = 4200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
@@ -52,6 +79,7 @@ function go(view) {
   state.view = view;
   for (const v of ['archive', 'new', 'day', 'about']) $('#v-' + v).hidden = v !== view;
   $$('.nav').forEach((b) => b.classList.toggle('on', b.dataset.go === view));
+  if (view !== 'day' && state.day) setGlow(state.day.summary, 'after');
   if (view === 'archive') renderArchive();
   if (view === 'new') { if (!state.form) resetForm(); }
   if (view === 'about') renderAbout();
@@ -63,30 +91,60 @@ function sealIcon(d) {
   const s = d.summary || {};
   return PV.Seal.icon({ env: d.track && d.track.env, bpm: d.track && d.track.bpm, E: s.E, color: s.accent || [150, 120, 90], paper: s.paper || [243, 239, 231], tod: s.tod, number: d.number, style: s.register === 'ma' ? 'red' : 'ink', seed: d.seed }, 48);
 }
+const swatch = (d) => {
+  const s = d.summary || {}, reg = PV.Mood.REG[s.register] || PV.Mood.REG.monet;
+  const acc = U.hex(s.accent || reg.color), pal = (s.palette || []).map(U.hex);
+  return pal.length ? `linear-gradient(90deg, ${pal[0]}, ${acc} 45%, ${acc} 60%, ${pal[1] || pal[0]})` : acc;
+};
 async function renderArchive() {
   state.urls.forEach((u) => URL.revokeObjectURL(u)); state.urls = [];
   state.days = await PV.Store.all();
   const n = state.days.length;
-  $('#arch-count').textContent = n ? `${n} ${U.plural(n, 'день', 'дня', 'дней')}` : '';
+  const regs = new Set(state.days.map((d) => (d.summary || {}).register).filter(Boolean)).size;
+  $('#arch-count').textContent = n ? `${n} ${U.plural(n, 'день', 'дня', 'дней')} · ${regs} ${U.plural(regs, 'настроение', 'настроения', 'настроений')}` : '';
   $('#arch-empty').hidden = n > 0;
+  $('#arch-mode').hidden = n === 0;
+  if (!state.day && n) setGlow(state.days[state.days.length - 1].summary, 'after');
+  /* цвета дневника: каждый день — полоска из его собственной палитры, по порядку дат */
+  const strip = $('#arch-strip');
+  strip.hidden = n < 2;
+  strip.querySelector('.bands').innerHTML = state.days.map((d) => `<button style="background:${swatch(d)}" data-id="${d.id}" title="${esc(d.title)} · ${esc(U.dateLong(d.date))}" aria-label="${esc(d.title)}"></button>`).join('');
+  $$('#arch-strip .bands button').forEach((b) => { b.onclick = () => openDayById(b.dataset.id); });
   const grid = $('#arch-grid'), feed = $('#arch-feed');
   grid.innerHTML = ''; feed.innerHTML = '';
   const REG = PV.Mood.REG;
-  for (const d of [...state.days].reverse()) {
+  [...state.days].reverse().forEach((d, i) => {
     const reg = REG[(d.summary || {}).register] || REG.monet;
     const b = document.createElement('button');
     b.className = 'day-card'; b.dataset.id = d.id;
-    b.innerHTML = `<div class="cover" style="--accent:${U.hex(reg.color)}"><span class="tab"></span>${d.cover ? `<img class="c" alt="" src="${objURL(d.cover)}">` : ''}</div>
+    const rot = ((((d.seed || 0) % 9) + 9) % 9 - 4) * 0.28;
+    b.style.cssText = `--rot:${rot.toFixed(2)}deg;--i:${Math.min(i, 12)}`;
+    b.innerHTML = `<div class="cover" style="--accent:${U.hex(reg.color)}"><span class="tab"></span>${d.cover ? `<img class="c" alt="" src="${objURL(d.cover)}">` : `<span class="nocover">${esc(reg.short)}</span>`}<span class="glare"></span></div>
       <div class="cap"><div class="t">${esc(d.title)}</div><div class="m"><img alt="" src="${sealIcon(d)}">${esc(U.dateLong(d.date))} · ${esc(reg.short)}</div></div>`;
     b.onclick = () => openDayById(d.id);
     grid.appendChild(b);
-  }
+  });
   for (const d of state.days) {
     const f = document.createElement('figure');
     f.innerHTML = `${d.cover ? `<img alt="" src="${objURL(d.cover)}">` : ''}<figcaption><b>${esc(d.title)}</b>${esc(U.dateStamp(d.date))}</figcaption>`;
     f.onclick = () => openDayById(d.id);
     feed.appendChild(f);
   }
+}
+/* карточка-снимок слегка наклоняется за курсором, по ней скользит блик */
+function bindTilt() {
+  const grid = $('#arch-grid');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(hover: none)').matches) return;
+  grid.addEventListener('pointermove', (e) => {
+    const c = e.target.closest('.cover'); if (!c) return;
+    const r = c.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    c.style.setProperty('--ry', `${((x - 0.5) * 10).toFixed(2)}deg`); c.style.setProperty('--rx', `${((0.5 - y) * 8).toFixed(2)}deg`);
+    c.style.setProperty('--gx', `${(x * 100).toFixed(1)}%`); c.style.setProperty('--gy', `${(y * 100).toFixed(1)}%`);
+  });
+  grid.addEventListener('pointerout', (e) => {
+    const c = e.target.closest('.cover');
+    if (c && !c.contains(e.relatedTarget)) { c.style.removeProperty('--rx'); c.style.removeProperty('--ry'); }
+  });
 }
 
 /* ---------- форма нового дня ---------- */
@@ -242,6 +300,8 @@ function validate() {
   if (!f.photos.length) need.push('хотя бы одно фото');
   const songOk = f.song.mode === 'file' ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
   if (!songOk) need.push(f.song.mode === 'file' ? 'аудиофайл песни' : 'ссылка или название песни');
+  const unnamed = f.song.mode === 'file' && f.song.A && !$('#f-artist').value.trim() && !$('#f-title').value.trim();
+  $('#f-song-warn').hidden = !unnamed;
   $('#f-go').disabled = need.length > 0;
   $('#f-need').textContent = need.length ? 'Осталось: ' + need.join(', ') : 'Всё готово';
 }
@@ -289,12 +349,13 @@ function styleFor(day) {
 }
 function summaryOf(S) {
   const m = S.mood;
-  return { register: S.register, E: m.E, V: m.V, W: m.W, N: m.N, T: m.T, D: m.D, accent: S.register === 'ma' ? [194, 65, 45] : S.accent, paper: S.bg || S.paper, tod: S.tod };
+  return { register: S.register, E: m.E, V: m.V, W: m.W, N: m.N, T: m.T, D: m.D, accent: S.register === 'ma' ? [194, 65, 45] : S.accent, paper: S.bg || S.paper, tod: S.tod, palette: (S.palette || []).slice(0, 4).map((c) => c.map(Math.round)) };
 }
 async function nextNumber() { const all = await PV.Store.all(); return all.reduce((m, d) => Math.max(m, d.number || 0), 0) + 1; }
 
 async function buildDay() {
   const f = state.form, date = $('#f-date').value || U.today(), text = $('#f-text').value.trim();
+  $('#busy').classList.add('build');
   busy(true, 'Читаю запись…', 0.04);
   try {
     await U.frame();
@@ -343,7 +404,7 @@ async function buildDay() {
   } catch (e) {
     console.error(e);
     toast('Не получилось собрать воспоминание: ' + e.message, 7000);
-  } finally { busy(false); }
+  } finally { busy(false); $('#busy').classList.remove('build'); }
 }
 
 /* ---------- страница дня ---------- */
@@ -392,6 +453,7 @@ async function openDay(day, opts = {}) {
   if (opts.fresh || !day.cover) day.cover = await coverBlob(R);
   day.summary = summaryOf(S);
   await PV.Store.put(day);
+  setGlow(day.summary, 'day');
   go('day');
   state.player = new PV.Player.Player($('#d-canvas'), R, state.audioBuf, {
     onTick: (t, d) => { $('#d-seek').value = Math.round((t / d) * 1000); $('#d-time').textContent = `${U.fmtTime(t)} / ${U.fmtTime(d)}`; },
@@ -636,6 +698,7 @@ function renderAbout() {
     <li><b>Название папки:</b> 3–7 слов, как подпись на обороте фотографии, по формуле «время суток + место + деталь или событие»: «Осенний парк и какао», «Ночь в офисе перед сдачей».</li>
     <li><b>Голос озвучки:</b> темп 0,80–1,15 по энергии, высота по тону, паузы между фразами длиннее в спокойные дни, тембр ниже в тяжёлые и ночные.</li>
   </ul>
+  <div class="note"><b>Послевкусие интерфейса.</b> Когда вы открываете день, сам дневник окрашивается в цвета его фотографий и акцент режима. Вы возвращаетесь в архив — а оттенок дня ещё держится в комнате, пока не откроете другой. Над архивом — «цвета дневника»: каждый день полоской из собственной палитры, по порядку дат.</div>
   <div class="note">Всё хранится только в вашем браузере. Из песни сохраняется лишь фрагмент, который звучит в воспоминании. Оценка настроения — это подбор оформления, а не психологическая диагностика. Шрифты Lora, Montserrat и Anonymous Pro распространяются по лицензии SIL Open Font License. Внешние библиотеки не используются: Canvas 2D, Web Audio API, MediaRecorder, Web Speech API и IndexedDB встроены в браузер.</div>`;
 }
 
@@ -703,13 +766,19 @@ async function init() {
   let days = [];
   try { days = await PV.Store.all(); } catch (e) { days = []; }
   if (PV.Store.mode === 'memory') toast('Браузер не даёт хранить дневник: дни будут жить до закрытия вкладки. Чтобы сохранить, используйте «Экспорт дневника».', 9000);
+  bindTilt();
+  go('archive');
+  /* демо-дневник грузится в фоне и не уводит человека с экрана, который он уже открыл */
   if (!days.length && location.protocol.startsWith('http')) {
     try {
       const r = await fetch('demo/diary.zip', { cache: 'no-store' });
-      if (r.ok) { const n = await importDiary(await r.blob(), { demo: true }); if (n) toast(`Загружен демо-дневник: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`); }
+      if (r.ok) {
+        const n = await importDiary(await r.blob(), { demo: true });
+        if (n) toast(`Загружен демо-дневник: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`);
+        if (state.view === 'archive') renderArchive();
+      }
     } catch (e) { /* демо нет — начнём с пустого дневника */ }
   }
-  go('archive');
 }
 
 PV.App = { IN_ARTIFACT, state, go, openDayById, importDiary, exportDiary, buildDay, addPhotos, loadAudio };

@@ -36,7 +36,7 @@ h3 { font-size: 20px; margin: 22px 0 10px; }
 [hidden] { display: none !important; }
 
 .bar { position: sticky; top: 0; z-index: 20; display: flex; align-items: center; gap: 18px; padding: 14px clamp(16px, 4vw, 40px);
-  background: rgba(243, 239, 231, .9); backdrop-filter: blur(8px); border-bottom: 1px solid var(--line); }
+  background: rgba(243, 239, 231, .78); backdrop-filter: blur(14px) saturate(1.2); border-bottom: 1px solid var(--line); }
 .brand { display: flex; align-items: baseline; gap: 12px; background: none; border: 0; cursor: pointer; padding: 0; }
 .logo { font: italic 500 26px/1 var(--serif); letter-spacing: -.01em; }
 .tag { font: 12px var(--mono); color: var(--soft); letter-spacing: .06em; text-transform: lowercase; }
@@ -72,7 +72,6 @@ main { position: relative; z-index: 1; max-width: 1280px; margin: 0 auto; paddin
 .day-card { display: block; width: 100%; text-align: left; background: none; border: 0; padding: 0; cursor: pointer; }
 .day-card .cover { position: relative; aspect-ratio: 9/16; border-radius: 10px; overflow: hidden; background: var(--paper2);
   box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 10px 24px -14px rgba(40, 25, 10, .45); transition: transform .2s; }
-.day-card:hover .cover { transform: translateY(-3px) rotate(-.4deg); }
 .day-card .cover img.c { width: 100%; height: 100%; object-fit: cover; display: block; }
 .day-card .tab { position: absolute; left: 10px; top: -1px; width: 54px; height: 9px; border-radius: 0 0 6px 6px; background: var(--accent, #c9a); opacity: .9; }
 .day-card .cap { padding: 10px 2px 0; }
@@ -192,7 +191,6 @@ details.tune summary { cursor: pointer; font-weight: 600; }
 #busy-text { font: italic 20px var(--serif); margin: 14px 0 16px; }
 .pbar { height: 4px; border-radius: 99px; background: var(--paper2); overflow: hidden; }
 .pbar i { display: block; height: 100%; width: 0; background: var(--rust); transition: width .25s; }
-.spinner { width: 46px; height: 46px; margin: 0 auto; border-radius: 50%; border: 3px solid var(--paper2); border-top-color: var(--rust); animation: spin 1s linear infinite; }
 @keyframes spin { to { transform: rotate(360deg); } }
 #toast { position: fixed; left: 50%; bottom: calc(26px + env(safe-area-inset-bottom)); transform: translateX(-50%); z-index: 60; background: var(--ink); color: var(--paper); padding: 12px 18px; border-radius: 12px; max-width: min(560px, 92vw); font-size: 14px; box-shadow: 0 16px 30px -12px rgba(0,0,0,.5); }
 
@@ -215,9 +213,112 @@ details.tune summary { cursor: pointer; font-weight: 600; }
   .grid { grid-template-columns: repeat(2, 1fr); }
 }
 
+/* =====================================================================
+   Послевкусие интерфейса: цвета открытого дня остаются в комнате
+   ===================================================================== */
+:root { --g1: 217 165 90; --g2: 169 68 43; --g3: 51 64 107; --tint: 169 68 43; }
+.glow { position: fixed; inset: 0; z-index: 0; pointer-events: none; opacity: 0; transition: opacity 1.8s ease; overflow: hidden; }
+.glow i { position: absolute; width: 62vmax; height: 62vmax; border-radius: 50%; filter: blur(60px); opacity: .8; animation: drift 38s ease-in-out infinite alternate; transition: background 1.6s ease; }
+.glow i:nth-child(1) { left: -22vmax; top: -26vmax; background: radial-gradient(closest-side, rgb(var(--g1) / .6), transparent); }
+.glow i:nth-child(2) { right: -24vmax; top: 8vh; background: radial-gradient(closest-side, rgb(var(--g2) / .5), transparent); animation-duration: 46s; animation-direction: alternate-reverse; }
+.glow i:nth-child(3) { left: 18vw; bottom: -38vmax; background: radial-gradient(closest-side, rgb(var(--g3) / .45), transparent); animation-duration: 52s; }
+html.has-glow .glow { opacity: 1; }
+html.has-glow.after .glow { opacity: .55; }
+@keyframes drift { from { transform: translate3d(0, 0, 0) scale(1); } to { transform: translate3d(6vmax, 4vmax, 0) scale(1.12); } }
+
+/* логотип — маленькая печать дня */
+.logo::before { content: ""; display: inline-block; width: .5em; height: .5em; margin-right: .32em; border-radius: 50%; vertical-align: .06em;
+  background: radial-gradient(circle, var(--paper) 0 28%, transparent 30%), rgb(var(--tint)); box-shadow: 0 0 0 2px rgb(var(--tint) / .25); transition: background 1.2s; }
+
+/* ---------- архив: полоса цветов дневника ---------- */
+.strip { display: flex; align-items: center; gap: 14px; margin: -6px 0 26px; }
+.strip > span { font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: var(--soft); white-space: nowrap; }
+.strip .bands { flex: 1; display: flex; gap: 3px; height: 16px; }
+.strip .bands button { flex: 1 1 0; min-width: 6px; border: 0; padding: 0; border-radius: 4px; cursor: pointer; transition: flex-grow .35s ease, transform .2s; box-shadow: inset 0 0 0 1px rgba(30,27,24,.08); }
+.strip .bands button:first-child { border-radius: 99px 4px 4px 99px; }
+.strip .bands button:last-child { border-radius: 4px 99px 99px 4px; }
+.strip .bands button:hover, .strip .bands button:focus-visible { flex-grow: 3; transform: scaleY(1.25); }
+
+/* ---------- архив: карточки как снимки на столе ---------- */
+.day-card { animation: deal .7s cubic-bezier(.2, .8, .2, 1) both; animation-delay: calc(var(--i, 0) * 55ms); }
+@keyframes deal { from { opacity: 0; transform: translateY(18px) rotate(calc(var(--rot, 0deg) * 4)); } }
+.day-card .cover { transform: perspective(900px) rotate(var(--rot, 0deg)) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  transition: transform .45s cubic-bezier(.2, .8, .2, 1), box-shadow .45s; will-change: transform; }
+.day-card:hover .cover, .day-card:focus-visible .cover { transform: perspective(900px) translateY(-6px) rotate(0deg) rotateX(var(--rx, 0deg)) rotateY(var(--ry, 0deg));
+  box-shadow: 0 1px 0 rgba(255,255,255,.6) inset, 0 26px 40px -22px rgba(40, 25, 10, .6); }
+.day-card .glare { position: absolute; inset: 0; pointer-events: none; opacity: 0; transition: opacity .3s;
+  background: radial-gradient(circle at var(--gx, 50%) var(--gy, 0%), rgba(255, 252, 245, .45), transparent 48%); mix-blend-mode: soft-light; }
+.day-card:hover .glare { opacity: 1; }
+.day-card .nocover { position: absolute; inset: 0; display: flex; align-items: center; justify-content: center; font: italic 20px var(--serif); color: var(--soft); }
+.day-card:hover .t { color: rgb(var(--tint)); }
+.day-card .t { transition: color .3s; }
+
+/* ---------- пустой архив ---------- */
+.empty { border: 0; background: radial-gradient(ellipse at 50% 0%, rgba(255,253,249,.8), transparent 70%); }
+.empty em { font-family: var(--serif); color: var(--ink); }
+.ghosts { position: relative; height: 170px; width: 220px; margin: 0 auto 26px; }
+.ghosts i { position: absolute; left: 50%; top: 0; width: 96px; aspect-ratio: 9/16; margin-left: -48px; border-radius: 8px;
+  background: linear-gradient(170deg, rgba(255,253,249,.9) 0 18%, var(--c) 18% 66%, rgba(255,253,249,.9) 66%);
+  box-shadow: 0 14px 30px -16px rgba(40,25,10,.55), inset 0 0 0 1px rgba(30,27,24,.08);
+  transform: translateX(var(--x)) rotate(var(--r)); animation: float 6s ease-in-out infinite alternate; }
+.ghosts i:nth-child(2) { animation-delay: -2s; z-index: 1; }
+.ghosts i:nth-child(3) { animation-delay: -4s; }
+@keyframes float { to { transform: translateX(var(--x)) translateY(-7px) rotate(calc(var(--r) * 1.3)); } }
+
+/* ---------- страница дня в цветах дня ---------- */
+html.has-glow .why li { border-left-color: rgb(var(--tint)); background: rgba(248, 245, 239, .82); }
+html.has-glow .why li b { color: rgb(var(--tint)); }
+html.has-glow .axis .track i { background: linear-gradient(90deg, rgb(var(--g1)), rgb(var(--tint))); }
+html.has-glow .folder-ico path { fill: rgb(var(--tint)); }
+html.has-glow .frame { box-shadow: 0 34px 70px -30px rgb(var(--g3) / .75), 0 0 0 1px rgba(30,27,24,.08); }
+.reg, .files, details.tune, .card { backdrop-filter: blur(6px); }
+.reg .sw { box-shadow: inset 0 0 0 3px rgba(255,255,255,.35); }
+.axis .track i { transform-origin: left; animation: grow .9s cubic-bezier(.2, .8, .2, 1) both; }
+.axis:nth-child(2) .track i { animation-delay: .06s; } .axis:nth-child(3) .track i { animation-delay: .12s; }
+.axis:nth-child(4) .track i { animation-delay: .18s; } .axis:nth-child(5) .track i { animation-delay: .24s; } .axis:nth-child(6) .track i { animation-delay: .3s; }
+@keyframes grow { from { transform: scaleX(0); } }
+
+/* ---------- сборка воспоминания: печать дорисовывается ---------- */
+#busy { --p: 0; }
+.ink { width: 104px; height: 104px; display: block; margin: 0 auto; overflow: visible; }
+.ink circle { fill: none; }
+.ink .ring { stroke: var(--paper2); stroke-width: 3; }
+.ink .draw { stroke: var(--rust); stroke-width: 3.5; stroke-linecap: round; stroke-dasharray: 100; stroke-dashoffset: calc(100 - var(--p) * 100);
+  transform: rotate(-90deg); transform-origin: 60px 60px; transition: stroke-dashoffset .35s ease; }
+.ink .spin { transform-origin: 60px 60px; animation: spin 7s linear infinite; }
+.ink .spin circle { stroke: var(--rust); stroke-width: 2; stroke-dasharray: 1.5 3.5; opacity: .45; }
+.ink .core { fill: var(--rust) !important; transform-origin: 60px 60px; animation: beat 1.1s ease-in-out infinite; }
+@keyframes spin { to { transform: rotate(360deg); } }
+@keyframes beat { 50% { transform: scale(1.35); opacity: .7; } }
+#busy-steps { display: none; list-style: none; padding: 0; margin: -4px 0 16px; justify-content: center; flex-wrap: wrap; gap: 6px 14px; font: 12px var(--mono); color: var(--faint); }
+#busy.build #busy-steps { display: flex; }
+#busy-steps li { transition: color .3s; }
+#busy-steps li.on { color: var(--ink); }
+#busy-steps li.on::before { content: "✓ "; color: var(--rust); }
+#busy-steps li.cur { color: var(--ink); font-weight: 700; }
+#busy-steps li.cur::before { content: "● "; color: var(--rust); }
+
+/* ---------- доступность ---------- */
+.warn { color: var(--rust2); margin-top: 8px; }
+:focus-visible { outline: 2px solid var(--rust); outline-offset: 3px; }
+.day-card:focus-visible { outline: none; }
+.day-card:focus-visible .cover { outline: 2px solid var(--rust); outline-offset: 4px; }
+.skip { position: absolute; left: 12px; top: -60px; z-index: 100; background: var(--ink); color: var(--paper); padding: 8px 14px; border-radius: 10px; text-decoration: none; }
+.skip:focus { top: 12px; }
+@media (max-width: 560px) {
+  .strip { margin-top: -10px; } .strip > span { display: none; }
+  .tag { display: none; }
+}
+@media (prefers-reduced-motion: reduce) {
+  *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
+  .glow i { animation: none; }
+}
+
 </style>
 </head>
 <body>
+<div class="glow" aria-hidden="true"><i></i><i></i><i></i></div>
+<a class="skip" href="#main">К содержимому</a>
 <header class="bar">
   <button class="brand" data-go="archive" aria-label="Послевкусие — к архиву"><span class="logo">Послевкусие</span><span class="tag">дневник атмосферы дня</span></button>
   <nav>
@@ -227,7 +328,7 @@ details.tune summary { cursor: pointer; font-weight: 600; }
   </nav>
 </header>
 
-<main>
+<main id="main">
   <!-- АРХИВ -->
   <section id="v-archive" class="view">
     <div class="arch-head">
@@ -239,9 +340,11 @@ details.tune summary { cursor: pointer; font-weight: 600; }
       <button class="btn ghost smallb" id="btn-export">Экспорт дневника</button>
       <input type="file" id="in-import" accept=".zip,application/zip" hidden>
     </div>
+    <div id="arch-strip" class="strip" hidden><span>цвета дневника</span><div class="bands"></div></div>
     <div id="arch-empty" class="empty" hidden>
+      <div class="ghosts" aria-hidden="true"><i style="--c:#d9a55a;--r:-9deg;--x:-58px"></i><i style="--c:#33406b;--r:2deg;--x:0px"></i><i style="--c:#e8b23a;--r:11deg;--x:58px"></i></div>
       <h2>Здесь будут ваши дни</h2>
-      <p>Начните с одного из самых любимых дней: напишите о нём, как рассказали бы близкому другу, добавьте настоящие фотографии и ту самую песню.</p>
+      <p>Фотографии помнят, как выглядел день. Здесь останется, как он <em>ощущался</em>. Начните с одного из любимых дней: напишите о нём, как рассказали бы близкому другу, добавьте настоящие фотографии и ту самую песню.</p>
       <button class="btn primary big" data-go="new">Записать день</button>
     </div>
     <div id="arch-grid" class="grid"></div>
@@ -292,6 +395,7 @@ details.tune summary { cursor: pointer; font-weight: 600; }
           <label class="field small"><span>Год</span><input id="f-year" inputmode="numeric" placeholder="1957" autocomplete="off"></label>
         </div>
         <div class="muted small" id="f-artist-hint" style="margin-top:8px"></div>
+        <div class="warn small" id="f-song-warn" hidden>Подпишите песню — иначе в кадре вместо названия будет имя файла.</div>
       </div>
       <div class="card optional no-artifact">
         <div class="step">По желанию · Погода дня</div>
@@ -353,9 +457,13 @@ details.tune summary { cursor: pointer; font-weight: 600; }
   <section id="v-about" class="view about" hidden></section>
 </main>
 
-<div id="busy" hidden><div class="busy-card"><div class="spinner"></div><div id="busy-text">Собираю воспоминание…</div><div class="pbar"><i id="busy-bar"></i></div></div></div>
+<div id="busy" hidden><div class="busy-card" role="status" aria-live="polite">
+  <svg class="ink" viewBox="0 0 120 120" aria-hidden="true"><circle class="ring" cx="60" cy="60" r="50" pathLength="100"/><circle class="draw" cx="60" cy="60" r="50" pathLength="100"/><g class="spin"><circle cx="60" cy="60" r="36" pathLength="100"/></g><circle class="core" cx="60" cy="60" r="9"/></svg>
+  <div id="busy-text">Собираю воспоминание…</div>
+  <ol id="busy-steps"><li data-at="0.12">читаю запись</li><li data-at="0.2">смотрю на свет</li><li data-at="0.3">слушаю песню</li><li data-at="0.97">рисую страницу</li></ol>
+  <div class="pbar"><i id="busy-bar"></i></div></div></div>
 <div id="dlg" hidden><div class="busy-card"><p id="dlg-text"></p><div class="actions" style="justify-content:center"><button class="btn ghost" id="dlg-no">Отмена</button><button class="btn primary" id="dlg-yes">Да</button></div></div></div>
-<div id="toast" hidden></div>
+<div id="toast" role="status" aria-live="polite" hidden></div>
 
 <script>
 /* Послевкусие — общие утилиты: числа, случайность с зерном, цвет, даты. */
@@ -3576,7 +3684,34 @@ const newForm = () => ({ photos: [], song: { mode: 'file', loaded: null, A: null
 function busy(on, text, p) {
   $('#busy').hidden = !on;
   if (text) $('#busy-text').textContent = text;
-  if (p != null) $('#busy-bar').style.width = Math.round(U.clamp(p) * 100) + '%';
+  if (p != null) {
+    const v = U.clamp(p);
+    $('#busy-bar').style.width = Math.round(v * 100) + '%';
+    $('#busy').style.setProperty('--p', v.toFixed(3));
+    let cur = false;
+    $$('#busy-steps li').forEach((li) => {
+      const done = v >= +li.dataset.at;
+      li.classList.toggle('on', done);
+      li.classList.toggle('cur', !done && !cur);
+      if (!done) cur = true;
+    });
+  }
+}
+
+/* ---------- послевкусие: интерфейс окрашивается в цвета дня и хранит их оттенок после ухода ---------- */
+const rgbVar = (c) => (c ? `${Math.round(c[0])} ${Math.round(c[1])} ${Math.round(c[2])}` : null);
+function setGlow(sum, mode) {
+  const root = document.documentElement;
+  if (!sum) { root.classList.remove('has-glow', 'after'); return; }
+  const pal = (sum.palette && sum.palette.length ? sum.palette : [sum.accent]).filter(Boolean);
+  const a = sum.accent || pal[0] || [169, 68, 43];
+  const g = [a, pal[0] || a, pal[1] || pal[0] || a];
+  g.forEach((c, i) => root.style.setProperty(`--g${i + 1}`, rgbVar(c)));
+  /* акцент для текста темнее, чтобы читался на бумаге */
+  const lch = U.rgb2lch(a), tint = U.lch2rgb([Math.min(lch[0], 48), Math.max(lch[1], 30), lch[2]]);
+  root.style.setProperty('--tint', rgbVar(tint));
+  root.classList.add('has-glow');
+  root.classList.toggle('after', mode === 'after');
 }
 let toastT = 0;
 function toast(msg, ms = 4200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
@@ -3607,6 +3742,7 @@ function go(view) {
   state.view = view;
   for (const v of ['archive', 'new', 'day', 'about']) $('#v-' + v).hidden = v !== view;
   $$('.nav').forEach((b) => b.classList.toggle('on', b.dataset.go === view));
+  if (view !== 'day' && state.day) setGlow(state.day.summary, 'after');
   if (view === 'archive') renderArchive();
   if (view === 'new') { if (!state.form) resetForm(); }
   if (view === 'about') renderAbout();
@@ -3618,30 +3754,60 @@ function sealIcon(d) {
   const s = d.summary || {};
   return PV.Seal.icon({ env: d.track && d.track.env, bpm: d.track && d.track.bpm, E: s.E, color: s.accent || [150, 120, 90], paper: s.paper || [243, 239, 231], tod: s.tod, number: d.number, style: s.register === 'ma' ? 'red' : 'ink', seed: d.seed }, 48);
 }
+const swatch = (d) => {
+  const s = d.summary || {}, reg = PV.Mood.REG[s.register] || PV.Mood.REG.monet;
+  const acc = U.hex(s.accent || reg.color), pal = (s.palette || []).map(U.hex);
+  return pal.length ? `linear-gradient(90deg, ${pal[0]}, ${acc} 45%, ${acc} 60%, ${pal[1] || pal[0]})` : acc;
+};
 async function renderArchive() {
   state.urls.forEach((u) => URL.revokeObjectURL(u)); state.urls = [];
   state.days = await PV.Store.all();
   const n = state.days.length;
-  $('#arch-count').textContent = n ? `${n} ${U.plural(n, 'день', 'дня', 'дней')}` : '';
+  const regs = new Set(state.days.map((d) => (d.summary || {}).register).filter(Boolean)).size;
+  $('#arch-count').textContent = n ? `${n} ${U.plural(n, 'день', 'дня', 'дней')} · ${regs} ${U.plural(regs, 'настроение', 'настроения', 'настроений')}` : '';
   $('#arch-empty').hidden = n > 0;
+  $('#arch-mode').hidden = n === 0;
+  if (!state.day && n) setGlow(state.days[state.days.length - 1].summary, 'after');
+  /* цвета дневника: каждый день — полоска из его собственной палитры, по порядку дат */
+  const strip = $('#arch-strip');
+  strip.hidden = n < 2;
+  strip.querySelector('.bands').innerHTML = state.days.map((d) => `<button style="background:${swatch(d)}" data-id="${d.id}" title="${esc(d.title)} · ${esc(U.dateLong(d.date))}" aria-label="${esc(d.title)}"></button>`).join('');
+  $$('#arch-strip .bands button').forEach((b) => { b.onclick = () => openDayById(b.dataset.id); });
   const grid = $('#arch-grid'), feed = $('#arch-feed');
   grid.innerHTML = ''; feed.innerHTML = '';
   const REG = PV.Mood.REG;
-  for (const d of [...state.days].reverse()) {
+  [...state.days].reverse().forEach((d, i) => {
     const reg = REG[(d.summary || {}).register] || REG.monet;
     const b = document.createElement('button');
     b.className = 'day-card'; b.dataset.id = d.id;
-    b.innerHTML = `<div class="cover" style="--accent:${U.hex(reg.color)}"><span class="tab"></span>${d.cover ? `<img class="c" alt="" src="${objURL(d.cover)}">` : ''}</div>
+    const rot = ((((d.seed || 0) % 9) + 9) % 9 - 4) * 0.28;
+    b.style.cssText = `--rot:${rot.toFixed(2)}deg;--i:${Math.min(i, 12)}`;
+    b.innerHTML = `<div class="cover" style="--accent:${U.hex(reg.color)}"><span class="tab"></span>${d.cover ? `<img class="c" alt="" src="${objURL(d.cover)}">` : `<span class="nocover">${esc(reg.short)}</span>`}<span class="glare"></span></div>
       <div class="cap"><div class="t">${esc(d.title)}</div><div class="m"><img alt="" src="${sealIcon(d)}">${esc(U.dateLong(d.date))} · ${esc(reg.short)}</div></div>`;
     b.onclick = () => openDayById(d.id);
     grid.appendChild(b);
-  }
+  });
   for (const d of state.days) {
     const f = document.createElement('figure');
     f.innerHTML = `${d.cover ? `<img alt="" src="${objURL(d.cover)}">` : ''}<figcaption><b>${esc(d.title)}</b>${esc(U.dateStamp(d.date))}</figcaption>`;
     f.onclick = () => openDayById(d.id);
     feed.appendChild(f);
   }
+}
+/* карточка-снимок слегка наклоняется за курсором, по ней скользит блик */
+function bindTilt() {
+  const grid = $('#arch-grid');
+  if (matchMedia('(prefers-reduced-motion: reduce)').matches || matchMedia('(hover: none)').matches) return;
+  grid.addEventListener('pointermove', (e) => {
+    const c = e.target.closest('.cover'); if (!c) return;
+    const r = c.getBoundingClientRect(), x = (e.clientX - r.left) / r.width, y = (e.clientY - r.top) / r.height;
+    c.style.setProperty('--ry', `${((x - 0.5) * 10).toFixed(2)}deg`); c.style.setProperty('--rx', `${((0.5 - y) * 8).toFixed(2)}deg`);
+    c.style.setProperty('--gx', `${(x * 100).toFixed(1)}%`); c.style.setProperty('--gy', `${(y * 100).toFixed(1)}%`);
+  });
+  grid.addEventListener('pointerout', (e) => {
+    const c = e.target.closest('.cover');
+    if (c && !c.contains(e.relatedTarget)) { c.style.removeProperty('--rx'); c.style.removeProperty('--ry'); }
+  });
 }
 
 /* ---------- форма нового дня ---------- */
@@ -3797,6 +3963,8 @@ function validate() {
   if (!f.photos.length) need.push('хотя бы одно фото');
   const songOk = f.song.mode === 'file' ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
   if (!songOk) need.push(f.song.mode === 'file' ? 'аудиофайл песни' : 'ссылка или название песни');
+  const unnamed = f.song.mode === 'file' && f.song.A && !$('#f-artist').value.trim() && !$('#f-title').value.trim();
+  $('#f-song-warn').hidden = !unnamed;
   $('#f-go').disabled = need.length > 0;
   $('#f-need').textContent = need.length ? 'Осталось: ' + need.join(', ') : 'Всё готово';
 }
@@ -3844,12 +4012,13 @@ function styleFor(day) {
 }
 function summaryOf(S) {
   const m = S.mood;
-  return { register: S.register, E: m.E, V: m.V, W: m.W, N: m.N, T: m.T, D: m.D, accent: S.register === 'ma' ? [194, 65, 45] : S.accent, paper: S.bg || S.paper, tod: S.tod };
+  return { register: S.register, E: m.E, V: m.V, W: m.W, N: m.N, T: m.T, D: m.D, accent: S.register === 'ma' ? [194, 65, 45] : S.accent, paper: S.bg || S.paper, tod: S.tod, palette: (S.palette || []).slice(0, 4).map((c) => c.map(Math.round)) };
 }
 async function nextNumber() { const all = await PV.Store.all(); return all.reduce((m, d) => Math.max(m, d.number || 0), 0) + 1; }
 
 async function buildDay() {
   const f = state.form, date = $('#f-date').value || U.today(), text = $('#f-text').value.trim();
+  $('#busy').classList.add('build');
   busy(true, 'Читаю запись…', 0.04);
   try {
     await U.frame();
@@ -3898,7 +4067,7 @@ async function buildDay() {
   } catch (e) {
     console.error(e);
     toast('Не получилось собрать воспоминание: ' + e.message, 7000);
-  } finally { busy(false); }
+  } finally { busy(false); $('#busy').classList.remove('build'); }
 }
 
 /* ---------- страница дня ---------- */
@@ -3947,6 +4116,7 @@ async function openDay(day, opts = {}) {
   if (opts.fresh || !day.cover) day.cover = await coverBlob(R);
   day.summary = summaryOf(S);
   await PV.Store.put(day);
+  setGlow(day.summary, 'day');
   go('day');
   state.player = new PV.Player.Player($('#d-canvas'), R, state.audioBuf, {
     onTick: (t, d) => { $('#d-seek').value = Math.round((t / d) * 1000); $('#d-time').textContent = `${U.fmtTime(t)} / ${U.fmtTime(d)}`; },
@@ -4191,6 +4361,7 @@ function renderAbout() {
     <li><b>Название папки:</b> 3–7 слов, как подпись на обороте фотографии, по формуле «время суток + место + деталь или событие»: «Осенний парк и какао», «Ночь в офисе перед сдачей».</li>
     <li><b>Голос озвучки:</b> темп 0,80–1,15 по энергии, высота по тону, паузы между фразами длиннее в спокойные дни, тембр ниже в тяжёлые и ночные.</li>
   </ul>
+  <div class="note"><b>Послевкусие интерфейса.</b> Когда вы открываете день, сам дневник окрашивается в цвета его фотографий и акцент режима. Вы возвращаетесь в архив — а оттенок дня ещё держится в комнате, пока не откроете другой. Над архивом — «цвета дневника»: каждый день полоской из собственной палитры, по порядку дат.</div>
   <div class="note">Всё хранится только в вашем браузере. Из песни сохраняется лишь фрагмент, который звучит в воспоминании. Оценка настроения — это подбор оформления, а не психологическая диагностика. Шрифты Lora, Montserrat и Anonymous Pro распространяются по лицензии SIL Open Font License. Внешние библиотеки не используются: Canvas 2D, Web Audio API, MediaRecorder, Web Speech API и IndexedDB встроены в браузер.</div>`;
 }
 
@@ -4258,13 +4429,19 @@ async function init() {
   let days = [];
   try { days = await PV.Store.all(); } catch (e) { days = []; }
   if (PV.Store.mode === 'memory') toast('Браузер не даёт хранить дневник: дни будут жить до закрытия вкладки. Чтобы сохранить, используйте «Экспорт дневника».', 9000);
+  bindTilt();
+  go('archive');
+  /* демо-дневник грузится в фоне и не уводит человека с экрана, который он уже открыл */
   if (!days.length && location.protocol.startsWith('http')) {
     try {
       const r = await fetch('demo/diary.zip', { cache: 'no-store' });
-      if (r.ok) { const n = await importDiary(await r.blob(), { demo: true }); if (n) toast(`Загружен демо-дневник: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`); }
+      if (r.ok) {
+        const n = await importDiary(await r.blob(), { demo: true });
+        if (n) toast(`Загружен демо-дневник: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`);
+        if (state.view === 'archive') renderArchive();
+      }
     } catch (e) { /* демо нет — начнём с пустого дневника */ }
   }
-  go('archive');
 }
 
 PV.App = { IN_ARTIFACT, state, go, openDayById, importDiary, exportDiary, buildDay, addPhotos, loadAudio };
