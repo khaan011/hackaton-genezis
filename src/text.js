@@ -177,9 +177,13 @@ function analyzeText(text, dateStr) {
   T.density = U.clamp((verbs + seq * 1.5 + clauses.length * 0.6) / 14);
 
   /* сущности для названия */
-  T.place = pickEntity(doc, L.places);
+  /* для названия: «говорили о доме» — тема, не место; кто только звонил или писал — не рядом */
+  const REMOTE = /(звон|позвон|написал|сообщени|переписк|видеосвяз|созвон)/i;
+  const nearText = clauses.filter((c) => !REMOTE.test(c)).join('. ').replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+/gi, ' ');
+  const pdoc = prepare(nearText);
+  T.place = pickEntity(pdoc, L.places);
   const companions = L.who.filter((w) => !w.alone);
-  T.who = pickEntity(doc, companions) || pickEntity(doc, L.who.filter((w) => w.alone));
+  T.who = pickEntity(pdoc, companions) || pickEntity(pdoc, L.who.filter((w) => w.alone));
   const kindOrder = ['taste', 'light', 'sound', 'thing', 'weather'];
   let det = null;
   for (const kind of kindOrder) { det = pickEntity(doc, L.details.filter((d) => d.kind === kind)); if (det) break; }

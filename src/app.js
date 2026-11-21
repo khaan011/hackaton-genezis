@@ -559,9 +559,9 @@ async function makeRenderer(day, S, scale, quality, onProgress) {
     if (vis === 'mix' && day.photos.length) {
       /* ваши снимки встают в каждую вторую сцену, подпись остаётся от фразы */
       const bmps = await Promise.all(day.photos.map((p) => PV.Img.loadBitmap(p.blob)));
-      let k = 0;
-      for (let i = 1; i < sc.length && k < bmps.length; i += 2, k++) { sc[i].photo = { bmp: bmps[k], a: day.photos[k].a }; sc[i].sc = { ...sc[i].sc, own: true }; }
-      if (sc.length < 2) sc.push({ sc: { ...sc[0].sc, caption: null, own: true }, photo: { bmp: bmps[0], a: day.photos[0].a } });
+      const { bySc, extra } = PV.Scene.matchPhotos(sc.map((x) => x.sc), day.photos.map((p) => p.a));
+      bySc.forEach((k, i) => { sc[i].photo = { bmp: bmps[k], a: day.photos[k].a }; sc[i].sc = { ...sc[i].sc, own: true }; });
+      extra.forEach((k) => sc.push({ sc: { ...sc[sc.length - 1].sc, caption: null, own: true }, photo: { bmp: bmps[k], a: day.photos[k].a } }));
     }
     photos = sc.map((x) => x.photo);
     captions = sc.map((x) => x.sc.caption);
@@ -718,6 +718,7 @@ async function saveVideo(thenZip) {
     try { await PV.Store.put(day); } catch (e) { console.warn(e); day.video = { blob, ext, mime: blob.type, unsaved: true }; }
     if (!thenZip) await download(blob, `${U.safeName(day.title)}.${ext}`);
     renderFiles(day, state.S);
+    if (day.song.service) toast(`Видео со звуком из ${day.song.service} — для личного архива: превью сервиса нельзя публиковать.`, 7000);
   } catch (e) { console.error(e); toast(e.message || 'Не получилось записать видео', 7000); throw e; }
   finally { busy(false); }
 }

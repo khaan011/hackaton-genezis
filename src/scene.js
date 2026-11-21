@@ -10,7 +10,7 @@ const SW = 900, SH = 1200;
 /* ---------- словарь сцен ---------- */
 const K = {
   place: {
-    office: ['офис', 'код', 'ноут', 'компьют', 'монитор', 'дедлайн', 'хакатон', 'программ', 'созвон', 'работ'],
+    office: ['офис', '=код', 'кода', 'ноут', 'компьют', 'монитор', 'дедлайн', 'хакатон', 'программ', 'на работе', 'опенспейс'],
     party: ['день рождения', 'праздн', 'вечерин', 'торт', 'шарик', 'концерт', 'клуб', 'танц', 'сюрприз', 'гост'],
     cafe: ['кафе', 'кофейн', 'ресторан', '=бар', 'пиццер'],
     home: ['=дома', 'квартир', 'комнат', 'кухн', 'кроват', 'диван', 'балкон', 'проснул', 'плед'],
@@ -19,7 +19,7 @@ const K = {
     mountain: ['=горы', '=горах', '=гор', 'поход', 'вершин', 'ущель'],
     forest: ['=лес', 'лесу', 'леса', 'роща', '=бор', 'тайг'],
     park: ['парк', 'сквер', '=сад', 'саду', 'алле', 'скамей', 'скамейк', 'клён', 'клен'],
-    road: ['дорог', 'поезд', 'трасс', 'машин', 'автобус', 'такси', '=домой', 'шла домой', 'шёл домой', 'шли домой', 'улиц', 'тротуар'],
+    road: ['дорог', 'поезд', 'трасс', 'машин', 'автобус', 'такси', 'трамва', 'электрич', 'маршрутк', '=домой', 'шла домой', 'шёл домой', 'шли домой', 'улиц', 'тротуар'],
     city: ['город', 'проспект', '=мост', 'центр', 'площад', 'метро', 'небоскр', 'огни города'],
   },
   weather: {
@@ -130,8 +130,13 @@ function plan(T, S, seed) {
     const doc = PV.Text.prepare(text);
     /* «в шесть утра», «к десяти вечера» — это время, а не смена времени суток */
     const todDoc = PV.Text.prepare(text.replace(/(\d+|один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)\s+(утра|вечера|ночи|дня)/gi, ''));
-    const p = best(doc, K.place);
-    place = p || place || fallbackPlace;
+    /* место ищем без темы разговора («о доме») и без направления («на работу», «в школу»), транспорт важнее цели */
+    const placeText = text.replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+(\s+[^\s,.;]+)?/gi, ' ').replace(/(^|\s)(на|в|во|к)\s+(работу|учёбу|учебу|школу|универ\S*|офис|пары)/gi, ' ');
+    const pdoc = PV.Text.prepare(placeText);
+    const transport = PV.Text.scan(pdoc, ['автобус', 'трамва', 'метро', 'такси', 'электрич', 'поезд', 'маршрутк', 'машин']).score > 0;
+    const p = transport ? 'road' : best(pdoc, K.place);
+    /* первая сцена без места не берёт место из следующих фраз: дом утром и ночью, город днём */
+    place = p || place || (i === 0 ? (['morning', 'night'].includes(tod) || PV.Text.scan(doc, ['проснул', 'позвон', 'звонил']).score ? 'home' : fallbackPlace) : fallbackPlace);
     const t = best(todDoc, K.tod); if (t) tod = t;
     const objs = all(doc, K.obj);
     /* погода начинается с момента, когда о ней сказано, и держится дальше; снег и туман — на весь день */
@@ -152,8 +157,15 @@ function plan(T, S, seed) {
     }
     /* фраза только о предмете — крупный план; иначе общий план места */
     let shot = !p && objs.some((o) => ['cup', 'cake', 'laptop', 'books', 'flowers', 'guitar', 'phone'].includes(o)) ? 'close' : 'wide';
+    /* «в окно», «из окна», «за окном» — смотрим изнутри: вид из окна */
+    if (/(^|\s)(в|из|за)\s+окн/i.test(text) && shot === 'wide') {
+      const last = scenes[scenes.length - 1];
+      /* то же помещение, если время суток не сменилось; иначе — дома у окна */
+      if (!INDOOR.has(place) || (last && last.place === place && last.tod !== tod && !p)) place = last && INDOOR.has(last.place) && last.tod === tod ? last.place : 'home';
+      shot = 'window';
+    }
     const prev = scenes[scenes.length - 1];
-    if (prev && prev.place === place && prev.shot === shot) {
+    if (prev && prev.place === place && prev.shot === shot && shot !== 'window') {
       /* то же место второй раз подряд: крупный план предмета, вид из окна или другой ракурс */
       if (shot === 'wide' && objs.some((o) => OBJ_KEYS.has(o))) shot = 'close';
       else if (shot === 'wide' && INDOOR.has(place)) shot = 'window';
@@ -491,5 +503,43 @@ function paint(sc, S) {
   return c;
 }
 
-PV.Scene = { plan, paint, describe, SW, SH };
+/* «Вместе»: какому снимку какая сцена подходит — по свету, теплу и цветам снимка */
+function hueShare(a, test) {
+  let w = 0, all = 0;
+  for (const c of (a.palette || [])) { const [L, C, h] = U.rgb2lch(c.rgb || c); const k = c.weight || 1; all += k; if (C > 14 && test(h, L, C)) w += k; }
+  return all ? w / all : 0;
+}
+function fitPhoto(sc, a) {
+  let s = 0;
+  const dark = a.lum < 0.36 || a.darkFrac > 0.45;
+  if (sc.tod === 'night') s += dark ? 2 : -1.2; else if (sc.tod === 'evening') s += (a.warm > 0.15 ? 1 : 0) + (dark ? 0.4 : 0); else s += dark ? -1 : 0.6;
+  const greenYellow = hueShare(a, (h) => h > 60 && h < 150), orange = hueShare(a, (h) => h > 35 && h < 90), blue = hueShare(a, (h) => h > 200 && h < 290);
+  if (['park', 'forest', 'dacha'].includes(sc.place) || sc.objs.includes('leaves')) s += 2.2 * (greenYellow + orange);
+  if (sc.place === 'office' || sc.objs.includes('laptop')) s += 2 * blue + (dark ? 0.8 : 0);
+  if (sc.place === 'water') s += 2 * blue;
+  if (sc.objs.includes('cup') || sc.place === 'cafe') s += 1.2 * orange + (a.warm > 0.2 ? 0.6 : 0);
+  if (sc.objs.includes('cake') || sc.objs.includes('balloons') || sc.place === 'party') s += a.sat > 0.4 ? 1.2 : 0.3;
+  if (sc.objs.includes('fire')) s += dark && a.warm > 0.1 ? 1.5 : 0;
+  if (sc.weather.includes('snow') || sc.season === 'winter') s += a.sat < 0.18 && a.lum > 0.55 ? 1.5 : 0;
+  if (sc.weather.includes('rain')) s += dark ? 0.6 : 0;
+  if (sc.objs.includes('phone')) s -= 3; /* звонок остаётся нарисованным телефоном */
+  return s;
+}
+/* жадно: лучшие пары «снимок — сцена», не больше половины сцен, без двух снимков подряд;
+   подходящего места нет — снимок уходит в конец как «фото дня» */
+function matchPhotos(scenes, photos) {
+  const pairs = [];
+  scenes.forEach((sc, i) => photos.forEach((a, k) => pairs.push({ i, k, s: fitPhoto(sc, a) })));
+  pairs.sort((x, y) => y.s - x.s);
+  const bySc = new Map(), used = new Set(), limit = Math.max(1, Math.floor(scenes.length / 2));
+  for (const pr of pairs) {
+    if (bySc.size >= limit) break;
+    if (pr.s < 0.4 || bySc.has(pr.i) || used.has(pr.k) || bySc.has(pr.i - 1) || bySc.has(pr.i + 1)) continue;
+    bySc.set(pr.i, pr.k); used.add(pr.k);
+  }
+  const extra = photos.map((_, k) => k).filter((k) => !used.has(k)).slice(0, 1);
+  return { bySc, extra };
+}
+
+PV.Scene = { plan, paint, describe, matchPhotos, fitPhoto, SW, SH };
 })();

@@ -68,5 +68,30 @@ for (const d of days) {
   check(!rs[0].weather.includes('rain') && rs[rs.length - 1].weather.includes('rain'), 'дождь начинается с момента, когда о нём сказано');
   check(rs[0].people === 'two' && rs[rs.length - 1].people === 'alone', 'двое держатся, пока текст не скажет «одна»');
 }
+// место и название: транспорт важнее цели, «о доме» — тема, звонок — не спутник
+{
+  const text = 'Утром мне позвонила мама. Потом я одна ехала на работу в пустом автобусе. Днём с друзьями гуляли в парке, под ногами шуршали листья. Вечером сидели в кафе, и мы долго говорили о доме. Ночью смотрела в окно на огни города.';
+  const T = PV.Text.analyze(text, '2026-10-20');
+  const S = PV.Mood.buildStyle({ text: T, photos: photo({}), music: music({}), seed: 11 });
+  const sc = PV.Scene.plan(T, S, 11);
+  console.log('\n== место и название');
+  sc.forEach((x) => console.log('  ', `«${x.caption}» → ${PV.Scene.describe(x)} [${x.tod}]`));
+  const titles = PV.Title.make(T, { tod: S.tod, season: S.season, register: S.register, seed: 11 });
+  console.log('   название:', titles[0].s);
+  const bus = sc.find((x) => /автобус/.test(x.text));
+  check(bus && bus.place === 'road', '«ехала на работу в автобусе» — дорога, а не офис');
+  check(!sc.some((x) => x.place === 'office'), 'офиса нет ни в одной сцене');
+  check(sc[0].place !== 'office' && sc[0].objs.includes('phone'), 'звонок утром — телефон, не офис');
+  const talk = sc.find((x) => /о доме/.test(x.text));
+  check(talk && talk.place === 'cafe', '«говорили о доме» — всё ещё кафе');
+  check(!/мам/.test(titles[0].s) && !/дома/.test(titles[0].s), `в названии нет мамы и «дома» («${titles[0].s}»)`);
+  // «Вместе»: тёмный синий снимок — к ночи, жёлтый — к парку
+  const parkA = { lum: 0.6, darkFrac: 0.1, warm: 0.4, sat: 0.45, palette: [{ rgb: [220, 170, 50], weight: 0.6 }, { rgb: [110, 140, 60], weight: 0.4 }] };
+  const nightA = { lum: 0.2, darkFrac: 0.7, warm: -0.2, sat: 0.3, palette: [{ rgb: [30, 40, 90], weight: 0.7 }, { rgb: [240, 200, 120], weight: 0.3 }] };
+  const m = PV.Scene.matchPhotos(sc, [nightA, parkA]);
+  const parkIdx = sc.findIndex((x) => x.place === 'park'), nightIdx = sc.findIndex((x) => x.tod === 'night');
+  check(m.bySc.get(parkIdx) === 1, 'жёлто-зелёный снимок встал в сцену парка');
+  check(m.bySc.get(nightIdx) === 0 || m.extra.includes(0), 'тёмный снимок — к ночи или в конец, но не в парк');
+}
 console.log(fails ? `\nПровалено проверок: ${fails}` : '\nВсе проверки пройдены');
 process.exitCode = fails ? 1 : 0;
