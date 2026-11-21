@@ -439,3 +439,21 @@ html[data-view="day"] #tour { left: auto; right: clamp(16px, 3vw, 32px); margin:
   html[data-view="day"] #toast { top: auto; bottom: 26px; left: auto; right: clamp(16px, 3vw, 32px); transform: none; max-width: 420px; }
 }
 .day > *, .stage, .panel { min-width: 0; }
+
+.seg.vis { margin: -4px 0 14px; }
+.seg.vis button { padding: 7px 14px; }
+
+/* ---------- поиск песни ---------- */
+#f-q { width: 100%; border: 1px solid var(--line); background: #fffdf9; border-radius: 12px; padding: 12px 14px; font-size: 16px; outline: none; }
+#f-q:focus { border-color: rgba(169, 68, 43, .6); box-shadow: 0 0 0 3px rgba(169, 68, 43, .12); }
+#f-search-status { margin: 8px 0 4px; min-height: 18px; }
+.results { list-style: none; padding: 0; margin: 6px 0 0; display: grid; grid-template-columns: minmax(0, 1fr); gap: 6px; max-height: 340px; overflow-y: auto; }
+.results li { display: flex; align-items: center; gap: 6px; border: 1px solid var(--line); background: #fffdf9; border-radius: 12px; padding: 4px; transition: border-color .2s, background .2s; }
+.results li.on { border-color: var(--rust); background: rgba(169, 68, 43, .07); }
+.results .res { flex: 1; min-width: 0; display: flex; align-items: center; gap: 10px; border: 0; background: none; text-align: left; cursor: pointer; padding: 4px; }
+.results img { width: 46px; height: 46px; border-radius: 8px; object-fit: cover; flex: none; background: var(--paper2); }
+.results .rt { min-width: 0; display: flex; flex-direction: column; }
+.results b { font-weight: 600; font-size: 14px; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.results i { font-style: normal; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.results .pv { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; }
+.src { margin-top: 8px; font-size: 12px; }

@@ -324,7 +324,7 @@ PV.Regs.ma = (R) => {
       const rc = rectFor(shot);
       const a = U.ease.sine((lt - 0.6) / 1.0) * (1 - U.smooth(dur - Math.min(1.1, dur * 0.16), dur, lt));
       if (a <= 0) return true;
-      ctx.save(); ctx.globalAlpha = a; ctx.fillStyle = U.css(ink, 0.92);
+      ctx.save(); ctx.globalAlpha *= a; ctx.fillStyle = U.css(ink, 0.92);
       setFont(ctx, 'serif', 38, 400, 'italic');
       const maxW = Math.max(360, rc.w);
       const lines = wrap(ctx, text, maxW, 2);
@@ -547,7 +547,7 @@ PV.Regs.matisse = (R) => {
       const q = place(shot.j), p = U.clamp((lt - 0.35) / 0.4), e = U.ease.outBack(p);
       if (p <= 0) return true;
       const a = 1 - U.smooth(dur - 0.35, dur, lt);
-      ctx.save(); ctx.globalAlpha = a;
+      ctx.save(); ctx.globalAlpha *= a;
       setFont(ctx, 'sans', 38, 700);
       const lines = wrap(ctx, text, 760, 2), lh = 50;
       const wMax = Math.max(...lines.map((l) => ctx.measureText(l).width));

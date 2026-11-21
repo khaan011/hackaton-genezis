@@ -162,13 +162,109 @@ function resetForm() {
   $('#f-artist').value = ''; $('#f-title').value = ''; $('#f-year').value = ''; $('#f-artist-hint').textContent = '';
   $$('.chips button').forEach((b) => b.classList.remove('on'));
   $('#f-weather-info').textContent = '';
-  setSongMode('file');
+  $('#f-q').value = ''; $('#f-results').innerHTML = ''; $('#f-search-status').textContent = '';
+  setSongMode('search');
   textHint(); validate();
 }
+/* ---------- поиск песни: Apple Music (iTunes Search API) — без ключей и скачивания, 30-секундный фрагмент ---------- */
+const hasAudio = (m) => m === 'file' || m === 'search';
+const ITUNES_GENRE = [[/jazz|блюз|blues/i, 'jazz'], [/classical|класси/i, 'classical'], [/hip.?hop|rap|рэп|хип/i, 'hiphop'], [/r&b|soul/i, 'rnb'],
+  [/electronic|dance|house|techno|электрон/i, 'electronic'], [/ambient/i, 'ambient'], [/soundtrack|саундтрек/i, 'soundtrack'], [/folk|фолк/i, 'folk'],
+  [/indie|alternative|альтернатив/i, 'indie'], [/rock|metal|рок/i, 'rock'], [/singer|acoustic/i, 'acoustic'], [/pop|поп/i, 'pop']];
+const genreOf = (g) => { for (const [re, k] of ITUNES_GENRE) if (re.test(g || '')) return k; return null; };
+let previewAudio = null;
+async function itunes(q, country) {
+  const r = await fetch(`https://itunes.apple.com/search?term=${encodeURIComponent(q)}&media=music&entity=song&limit=10&country=${country}`);
+  if (!r.ok) throw new Error('HTTP ' + r.status);
+  return ((await r.json()).results || []).filter((x) => x.previewUrl).map((x) => ({ ...x, source: 'Apple Music' }));
+}
+/* Deezer: поиск через JSONP (у API нет CORS), сами фрагменты отдаются с CORS */
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cb = '__pvdz' + Date.now() + Math.floor(Math.random() * 1e5), s = document.createElement('script');
+    const done = () => { clearTimeout(timer); delete window[cb]; s.remove(); };
+    const timer = setTimeout(() => { done(); reject(new Error('timeout')); }, 9000);
+    window[cb] = (d) => { done(); resolve(d); };
+    s.onerror = () => { done(); reject(new Error('jsonp')); };
+    s.src = url + (url.includes('?') ? '&' : '?') + 'output=jsonp&callback=' + cb;
+    document.head.appendChild(s);
+  });
+}
+async function deezer(q) {
+  const d = await jsonp(`https://api.deezer.com/search?q=${encodeURIComponent(q)}&limit=10`);
+  if (d && d.error) throw new Error(d.error.message || 'deezer');
+  return ((d && d.data) || []).filter((x) => x.preview).map((x) => ({
+    trackName: x.title, artistName: x.artist && x.artist.name, artworkUrl100: x.album && x.album.cover_medium,
+    previewUrl: x.preview, trackViewUrl: x.link, releaseDate: null, primaryGenreName: null, source: 'Deezer',
+  }));
+}
+/* на iPhone Apple перенаправляет поиск в приложение «Музыка», поэтому там первым идёт Deezer */
+const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+async function findSongs(q) {
+  const order = IOS ? [() => deezer(q), () => itunes(q, 'KZ')] : [() => itunes(q, 'KZ'), () => deezer(q), () => itunes(q, 'US')];
+  let lastErr = null;
+  for (const f of order) {
+    try { const r = await f(); if (r.length) return r; } catch (e) { lastErr = e; }
+  }
+  if (lastErr) throw lastErr;
+  return [];
+}
+const searchSongs = debounce(async () => {
+  const q = $('#f-q').value.trim(), box = $('#f-results'), st = $('#f-search-status');
+  if (q.length < 2) { box.innerHTML = ''; st.textContent = ''; return; }
+  const my = (state.searchSeq = (state.searchSeq || 0) + 1);
+  st.textContent = 'Ищу…';
+  try {
+    const items = await findSongs(q);
+    if (my !== state.searchSeq) return;
+    state.results = items;
+    st.textContent = items.length ? `Выберите песню — дневник послушает её 30-секундный фрагмент (${items[0].source}).` : 'Ничего не нашлось. Попробуйте иначе или загрузите файл.';
+    box.innerHTML = items.map((x, i) => `<li><button class="res" data-i="${i}"><img src="${esc(x.artworkUrl100 || '')}" alt="" loading="lazy" onerror="this.style.visibility='hidden'"><span class="rt"><b>${esc(x.trackName)}</b><i>${esc(x.artistName)}${x.releaseDate ? ' · ' + esc(x.releaseDate.slice(0, 4)) : ''}</i></span></button><button class="pv" data-i="${i}" aria-label="Послушать фрагмент">▶</button></li>`).join('');
+    $$('#f-results .res').forEach((b) => { b.onclick = () => pickSong(+b.dataset.i); });
+    $$('#f-results .pv').forEach((b) => { b.onclick = () => previewSong(+b.dataset.i, b); });
+  } catch (e) {
+    if (my === state.searchSeq) st.textContent = 'Поиск сейчас недоступен (нет сети?). Загрузите файл или вставьте ссылку.';
+  }
+}, 350);
+function stopPreview() { if (previewAudio) { previewAudio.pause(); previewAudio = null; } $$('#f-results .pv').forEach((x) => { x.textContent = '▶'; }); }
+function previewSong(i, btn) {
+  const x = state.results && state.results[i]; if (!x) return;
+  const same = previewAudio && previewAudio.dataset.i === String(i);
+  stopPreview();
+  if (same) return;
+  previewAudio = new Audio(x.previewUrl); previewAudio.dataset.i = String(i);
+  previewAudio.play().catch(() => {}); btn.textContent = '❚❚';
+  previewAudio.onended = stopPreview;
+}
+async function pickSong(i) {
+  const x = state.results && state.results[i]; if (!x) return;
+  stopPreview();
+  $$('#f-results li').forEach((li, k) => li.classList.toggle('on', k === i));
+  const st = $('#f-search-status');
+  st.textContent = `Слушаю «${x.trackName}»: темп, громкость, лад…`;
+  try {
+    const r = await fetch(x.previewUrl);
+    if (!r.ok) throw new Error('HTTP ' + r.status);
+    const blob = await r.blob();
+    $('#f-artist').value = x.artistName || ''; $('#f-title').value = x.trackName || '';
+    const year = x.releaseDate ? parseInt(x.releaseDate.slice(0, 4), 10) : null;
+    if (year) $('#f-year').value = year;
+    const g = genreOf(x.primaryGenreName);
+    if (g) { state.form.song.describe.genre = g; $$('.chips[data-k="genre"] button').forEach((b) => b.classList.toggle('on', b.dataset.v === g)); }
+    state.form.song.url = x.trackViewUrl || null;
+    state.form.song.service = x.source;
+    await loadAudio(new File([blob], `${x.artistName} — ${x.trackName}.m4a`, { type: blob.type || 'audio/mp4' }));
+  } catch (e) {
+    console.warn(e);
+    st.textContent = 'Не получилось загрузить фрагмент. Попробуйте другую песню или загрузите файл.';
+  }
+}
+
 function setSongMode(m) {
   state.form.song.mode = m;
   $$('#f-song-mode button').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
-  $('#f-song-file').hidden = m !== 'file'; $('#f-song-link').hidden = m !== 'link';
+  $('#f-song-file').hidden = m !== 'file'; $('#f-song-link').hidden = m !== 'link'; $('#f-song-search').hidden = m !== 'search';
+  if (m !== 'search') stopPreview();
   validate();
 }
 const textHint = debounce(() => {
@@ -235,6 +331,7 @@ async function loadAudio(file) {
     state.form.song.loaded = song; state.form.song.A = A;
     if (!$('#f-artist').value && !$('#f-title').value) { const g = guessFromFileName(file.name); $('#f-artist').value = g.artist; $('#f-title').value = g.title; artistHint(); }
     showAnalysis(); drawWave();
+    if (state.form.song.mode === 'search') $('#f-search-status').textContent = '✓ ' + $('#f-audio-info').textContent;
     const sl = $('#f-ex-start');
     sl.max = Math.max(0, A.duration - 15).toFixed(1); sl.value = A.start.toFixed(1);
     $('#f-wave-wrap').hidden = false;
@@ -302,11 +399,11 @@ function validate() {
   const need = [];
   if ($('#f-text').value.trim().length < 10) need.push('пара предложений о дне');
   if (!f.photos.length) need.push('хотя бы одно фото');
-  const songOk = f.song.mode === 'file' ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
-  if (!songOk) need.push(f.song.mode === 'file' ? 'аудиофайл песни' : 'ссылка или название песни');
+  const songOk = hasAudio(f.song.mode) ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
+  if (!songOk) need.push(f.song.mode === 'search' ? 'песня (найдите и выберите)' : f.song.mode === 'file' ? 'аудиофайл песни' : 'ссылка или название песни');
   const ar = $('#f-artist').value.trim(), ti = $('#f-title').value.trim();
   const fileLike = !ar && /^[\w .()-]+$/.test(ti) && /\d/.test(ti);
-  const unnamed = f.song.mode === 'file' && f.song.A && ((!ar && !ti) || fileLike);
+  const unnamed = hasAudio(f.song.mode) && f.song.A && ((!ar && !ti) || fileLike);
   $('#f-song-warn').hidden = !unnamed;
   $('#f-artist').classList.toggle('want', !!unnamed); $('#f-title').classList.toggle('want', !!unnamed);
   const okK = { text: $('#f-text').value.trim().length >= 10, photos: f.photos.length > 0, song: songOk };
@@ -377,7 +474,7 @@ async function buildDay() {
     busy(true, 'Слушаю песню…', 0.2); await U.frame();
     const meta = songMeta();
     let M, track, ex = null;
-    if (f.song.mode === 'file' && f.song.A) {
+    if (hasAudio(f.song.mode) && f.song.A) {
       M = { ...stripPriv(f.song.A), genre: meta.genre, year: meta.year };
     } else {
       const D = f.song.describe;
@@ -386,7 +483,7 @@ async function buildDay() {
     const S = PV.Mood.buildStyle({ text: T, photos: P, music: M, seed });
     const titles = PV.Title.make(T, { tod: S.tod, season: S.season, register: S.register, seed });
     const dur = estimateDuration(S, T, f.photos.length);
-    if (f.song.mode === 'file' && f.song.A) {
+    if (hasAudio(f.song.mode) && f.song.A) {
       const A = f.song.A;
       ex = PV.Audio.makeExcerpt(f.song.loaded, A.start, Math.min(A.duration - A.start, dur + 1.5));
       const fin = PV.Audio.finalizeExcerpt(A, ex.t0, ex.dur);
@@ -401,7 +498,7 @@ async function buildDay() {
       photos: f.photos.map((p) => ({ blob: p.blob, w: p.w, h: p.h, a: p.a })),
       song: {
         mode: f.song.mode, artist: meta.artist, title: meta.title, year: meta.year, label: meta.label,
-        url: f.song.mode === 'link' ? f.song.url : null, link: f.song.mode === 'link' ? f.song.link : null, describe: f.song.describe,
+        url: f.song.mode !== 'file' ? f.song.url : null, service: f.song.mode === 'search' ? (f.song.service || null) : null, link: f.song.mode === 'link' ? f.song.link : null, describe: f.song.describe,
         excerpt: ex ? ex.blob : null, excerptExt: ex ? ex.ext : null, excerptStart: ex ? ex.t0 : null, excerptDur: ex ? ex.dur : null,
         fileName: f.song.loaded ? f.song.loaded.file.name : null,
       },
@@ -428,11 +525,28 @@ function stopDay() {
   if (state.voiceAudio) { state.voiceAudio.pause(); state.voiceAudio = null; }
   $('#d-frame').classList.remove('playing');
 }
+/* сцены из текста: каждая фраза записи — нарисованная сцена; фото задают только палитру и свет */
+function scenesFor(day, S) {
+  const plan = PV.Scene.plan(day.analysis.T, S, day.seed);
+  return plan.map((sc) => {
+    const c = PV.Scene.paint(sc, S);
+    return { sc, photo: { bmp: c, a: PV.Img.analyzePhoto(c, sc.seed) } };
+  });
+}
 async function makeRenderer(day, S, scale, quality, onProgress) {
-  const bmps = await Promise.all(day.photos.map((p) => PV.Img.loadBitmap(p.blob)));
+  let photos, captions = null;
+  if (day.visual === 'photos') {
+    const bmps = await Promise.all(day.photos.map((p) => PV.Img.loadBitmap(p.blob)));
+    photos = bmps.map((b, i) => ({ bmp: b, a: day.photos[i].a }));
+  } else {
+    const sc = scenesFor(day, S);
+    photos = sc.map((x) => x.photo);
+    captions = sc.map((x) => x.sc.caption);
+    state.scenes = sc.map((x) => x.sc);
+  }
   const R = new PV.Render.Renderer({
     style: S, text: day.analysis.T, title: day.title, date: day.date, number: day.number,
-    photos: bmps.map((b, i) => ({ bmp: b, a: day.photos[i].a })), music: { ...day.track },
+    photos, captions, music: { ...day.track },
   }, { scale, quality });
   await R.prepare(onProgress);
   return R;
@@ -471,6 +585,7 @@ async function openDay(day, opts = {}) {
   state.player.seek(Math.max(2.4, R.shots[0].start + Math.min(R.shots[0].dur * 0.7, 3.2)));
   fillPanel(day, S);
   dayPos();
+  $$('#d-visual button').forEach((b) => b.classList.toggle('on', b.dataset.v === (day.visual || 'scenes')));
 }
 function setPlaying(on) {
   $('#d-play').textContent = on ? '❚❚' : '▶';
@@ -497,6 +612,9 @@ function fillPanel(day, S) {
   $('#d-tune-rows').innerHTML = AX.slice(0, 4).map(([k, name]) => `<div class="tune-row"><span>${name}</span><input type="range" min="0" max="100" value="${Math.round(S.mood[k] * 100)}" data-k="${k}"><span class="muted" data-v="${k}">${day.overrides[k] != null ? 'вручную' : 'авто'}</span></div>`).join('');
   $$('#d-tune-rows input').forEach((inp) => { inp.oninput = () => { $(`[data-v="${inp.dataset.k}"]`).textContent = 'вручную'; retune(); }; });
   const lines = PV.Mood.explain({ text: day.analysis.T, photos: day.analysis.P, music: day.analysis.M }, S);
+  if (day.visual !== 'photos' && state.scenes && state.scenes.length) {
+    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${PV.Scene.describe(sc)}`).join('; ') + '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.' });
+  }
   lines.push({ k: 'Название', t: `${day.titlePattern || 'по правилам'} — 3–7 слов, как подпись на обороте фотографии, без глаголов и эмоций «в лоб».` });
   $('#d-why').innerHTML = lines.map((l) => `<li><b>${esc(l.k)}</b>${esc(l.t)}</li>`).join('');
   $('#d-voice-note').textContent = 'Голос по правилам дня: ' + PV.Voice.describe(S.voice) + (day.voice ? '. Есть запись вашим голосом — играет она.' : '.');
@@ -511,6 +629,9 @@ function fillPanel(day, S) {
 function folderFiles(day, S) {
   const base = U.safeName(day.title), files = [];
   const lines = PV.Mood.explain({ text: day.analysis.T, photos: day.analysis.P, music: day.analysis.M }, S);
+  if (day.visual !== 'photos' && state.scenes && state.scenes.length) {
+    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${PV.Scene.describe(sc)}`).join('; ') + '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.' });
+  }
   files.push({ name: 'запись.txt', data: `${U.dateLong(day.date)}, ${U.weekday(day.date)}\n\n${day.text}\n` });
   day.photos.forEach((p, i) => files.push({ name: `фото-${String(i + 1).padStart(2, '0')}.jpg`, data: p.blob }));
   if (day.song.excerpt) files.push({ name: `песня-фрагмент.${day.song.excerptExt}`, data: day.song.excerpt });
@@ -732,6 +853,7 @@ function bind() {
   ['dragleave', 'drop'].forEach((ev) => drop.addEventListener(ev, () => drop.classList.remove('over')));
   drop.addEventListener('drop', (e) => { e.preventDefault(); addPhotos(e.dataTransfer.files); });
   $$('#f-song-mode button').forEach((b) => { b.onclick = () => setSongMode(b.dataset.m); });
+  $('#f-q').oninput = searchSongs;
   $('#f-audio').onchange = (e) => { const f = e.target.files[0]; if (f) loadAudio(f); };
   $('#f-ex-start').oninput = () => { const A = state.form.song.A; if (A) { A.start = parseFloat($('#f-ex-start').value); drawWave(); } reanalyze(); };
   $('#f-url').oninput = () => {
@@ -943,6 +1065,12 @@ async function init() {
   try { days = await PV.Store.all(); } catch (e) { days = []; }
   if (PV.Store.mode === 'memory') toast('Браузер не даёт хранить дневник: дни будут жить до закрытия вкладки. Чтобы сохранить, используйте «Экспорт дневника».', 9000);
   bindTilt(); bindTour(); bindMobile();
+  $$('#d-visual button').forEach((b) => { b.onclick = async () => {
+    const day = state.day; if (!day || (day.visual || 'scenes') === b.dataset.v) return;
+    day.visual = b.dataset.v; day.video = null;
+    busy(true, b.dataset.v === 'photos' ? 'Собираю из ваших фото…' : 'Дорисовываю сцены по записи…', 0.2);
+    try { await openDay(day, { fresh: true, onProgress: (p) => busy(true, null, 0.2 + 0.75 * p) }); } finally { busy(false); }
+  }; });
   go('archive');
   /* демо-дневник грузится в фоне и не уводит человека с экрана, который он уже открыл */
   if (!days.length && location.protocol.startsWith('http')) {

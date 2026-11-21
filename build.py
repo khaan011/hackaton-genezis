@@ -4,7 +4,7 @@ import base64, pathlib, sys
 
 ROOT = pathlib.Path(__file__).parent
 SRC, FONTS, OUT = ROOT / 'src', ROOT / 'fonts', ROOT / 'build'
-JS = ['util', 'lexicon', 'text', 'title', 'mood', 'audio', 'image', 'seal', 'render', 'regs', 'store', 'voice', 'player', 'app']
+JS = ['util', 'lexicon', 'text', 'title', 'mood', 'audio', 'image', 'scene', 'seal', 'render', 'regs', 'store', 'voice', 'player', 'app']
 FACES = [
     ('PV Serif', 'lora.woff', '400 700', 'normal'),
     ('PV Serif', 'lora-italic.woff', '400 700', 'italic'),

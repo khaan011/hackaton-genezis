@@ -73,15 +73,22 @@
         <div class="hint" id="f-text-hint"></div>
       </div>
       <div class="card">
-        <div class="step">2 · Фото дня</div>
+        <div class="step">2 · Фото дня — референс</div>
         <label class="drop" id="f-drop"><input type="file" id="f-photos" accept="image/*" multiple><span class="hov">Перетащите сюда или выберите 1–8 фото</span><span class="tap">📷 Выбрать 1–8 фото из галереи</span></label>
         <div class="thumbs" id="f-thumbs"></div>
         <div class="hint" id="f-photo-hint"></div>
+        <p class="muted small" style="margin:6px 0 0">Фото подскажут палитру и свет. Само воспоминание дневник дорисует по вашим словам — сцена за сценой.</p>
       </div>
       <div class="card">
         <div class="step">3 · Песня дня</div>
-        <div class="seg" id="f-song-mode"><button data-m="file" class="on">Аудиофайл</button><button data-m="link">Ссылка</button></div>
-        <div id="f-song-file">
+        <div class="seg" id="f-song-mode"><button data-m="search" class="on">🔍 Найти</button><button data-m="file">Файл</button><button data-m="link">Ссылка</button></div>
+        <div id="f-song-search">
+          <input type="search" id="f-q" placeholder="Исполнитель или название: Кино, Billie Eilish, Ветер…" autocomplete="off" enterkeyhint="search">
+          <div class="muted small" id="f-search-status" aria-live="polite"></div>
+          <ul class="results" id="f-results"></ul>
+          <div class="muted small src">Поиск и 30-секундные фрагменты — Apple Music и Deezer. Скачивать ничего не нужно.</div>
+        </div>
+        <div id="f-song-file" hidden>
           <label class="drop small" id="f-adrop"><input type="file" id="f-audio" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac"><span class="hov">MP3, M4A, WAV или OGG — полный аудиоанализ</span><span class="tap">♪ Выбрать песню: MP3, M4A или WAV</span></label>
           <div id="f-audio-info" class="analysis-line"></div>
           <div id="f-wave-wrap" hidden>
@@ -146,6 +153,7 @@
           <input id="d-title" class="title-in" maxlength="70" aria-label="Название папки дня">
         </div>
         <div class="meta" id="d-meta"></div>
+        <div class="seg vis" id="d-visual" role="group" aria-label="Из чего собрано видео"><button data-v="scenes">✦ Сцены из текста</button><button data-v="photos">Мои фото</button></div>
         <div class="reg" id="d-reg"></div>
         <div class="axes" id="d-axes"></div>
         <details class="tune" id="d-tune">

@@ -151,9 +151,14 @@ class Renderer {
     for (let j = 0; j < total; j++) { this.shots.push({ j, pi: j % k, variant: Math.floor(j / k), start: t, dur: shot }); t += shot + pause; }
     this.shotsEnd = t - pause;
     this.duration = this.shotsEnd + outro;
-    const caps = PV.Text.pickCaptions(this.T, Math.min(total, 6));
     this.capOf = new Array(total).fill(null);
-    caps.forEach((c, i) => { this.capOf[Math.min(total - 1, Math.round(i * total / caps.length))] = c; });
+    if (this.day.captions) {
+      /* сцены из текста: у каждой сцены своя реплика, она звучит один раз — при первом показе сцены */
+      this.shots.forEach((sh, j) => { if (sh.variant === 0) this.capOf[j] = this.day.captions[sh.pi] || null; });
+    } else {
+      const caps = PV.Text.pickCaptions(this.T, Math.min(total, 6));
+      caps.forEach((c, i) => { this.capOf[Math.min(total - 1, Math.round(i * total / caps.length))] = c; });
+    }
   }
   shotIndex(t) {
     const s = this.shots;
@@ -376,7 +381,7 @@ class Renderer {
     ctx.fillText(`№ ${String(d.number || 1).padStart(3, '0')}`, W - LAY.M, 112);
     ctx.textAlign = 'left'; setSpacing(ctx, 0);
     ctx.restore();
-    this.drawTitle(ctx, t);
+    { const a = this.titleAlpha(t); if (a > 0.001) { ctx.save(); ctx.globalAlpha *= a; this.drawTitle(ctx, t); ctx.restore(); } }
     const m = this.music;
     let sealCol = S.register === 'ma' ? [194, 65, 45] : S.accent;
     {
@@ -453,7 +458,14 @@ class Renderer {
     const shot = this.shots[k], text = this.capOf[k];
     if (!text) return;
     const lt = t - shot.start, dur = shot.dur;
-    if (this.reg.drawCaption && this.reg.drawCaption(ctx, t, text, lt, dur, shot)) return;
+    const hold = Math.max(1.1, dur * 0.72);
+    const env = U.smooth(0.15, 0.55, lt) * (1 - U.smooth(hold, hold + 0.45, lt));
+    if (env <= 0.001) return;
+    ctx.save(); ctx.globalAlpha *= env;
+    const own = this.reg.drawCaption && this.reg.drawCaption(ctx, t, text, lt, dur, shot);
+    ctx.restore();
+    if (own) return;
+    ctx.save(); ctx.globalAlpha *= env;
     const S = this.S, struct = S.type.voice === 'struct';
     const fadeOut = 1 - U.smooth(dur - 0.45, dur, lt);
     ctx.save();
@@ -477,6 +489,15 @@ class Renderer {
     }
     setSpacing(ctx, 0);
     ctx.restore();
+    ctx.restore();
+  }
+  /* название дня: в сценах из текста — только в начале и в конце, а не всё видео */
+  titleAlpha(t) {
+    if (!this.day.captions || !this.shots.length) return 1;
+    const s0 = this.shots[0], endFirst = s0.start + s0.dur;
+    const head = 1 - U.smooth(endFirst - 0.7, endFirst - 0.1, t);
+    const tail = U.smooth(this.shotsEnd - 0.6, this.shotsEnd + 0.2, t);
+    return Math.max(head, tail);
   }
 
   /* ---------- кадр целиком ---------- */
