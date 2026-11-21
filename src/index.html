@@ -1,0 +1,158 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Послевкусие — дневник атмосферы дня</title>
+<link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2728%27 fill=%27%23a9442b%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2717%27 fill=%27none%27 stroke=%27%23f3efe7%27 stroke-width=%273%27/%3E%3C/svg%3E">
+<meta name="description" content="Личный дневник, который превращает день — текст, фото и песню — в воспоминание, передающее его атмосферу.">
+<style>
+/*FONTS*/
+/*STYLE*/
+</style>
+</head>
+<body>
+<header class="bar">
+  <button class="brand" data-go="archive" aria-label="Послевкусие — к архиву"><span class="logo">Послевкусие</span><span class="tag">дневник атмосферы дня</span></button>
+  <nav>
+    <button class="nav" data-go="archive">Архив</button>
+    <button class="nav" data-go="about"><span class="long">Как это работает</span><span class="short">О системе</span></button>
+    <button class="btn primary" data-go="new">Записать день</button>
+  </nav>
+</header>
+
+<main>
+  <!-- АРХИВ -->
+  <section id="v-archive" class="view">
+    <div class="arch-head">
+      <h1>Дневник</h1>
+      <span class="muted" id="arch-count"></span>
+      <div class="seg" id="arch-mode"><button data-mode="folders" class="on">Папки</button><button data-mode="feed">Лента</button></div>
+      <div class="spacer"></div>
+      <button class="btn ghost smallb" id="btn-import">Импорт дневника</button>
+      <button class="btn ghost smallb" id="btn-export">Экспорт дневника</button>
+      <input type="file" id="in-import" accept=".zip,application/zip" hidden>
+    </div>
+    <div id="arch-empty" class="empty" hidden>
+      <h2>Здесь будут ваши дни</h2>
+      <p>Начните с одного из самых любимых дней: напишите о нём, как рассказали бы близкому другу, добавьте настоящие фотографии и ту самую песню.</p>
+      <button class="btn primary big" data-go="new">Записать день</button>
+    </div>
+    <div id="arch-grid" class="grid"></div>
+    <div id="arch-feed" class="feed" hidden></div>
+  </section>
+
+  <!-- НОВЫЙ ДЕНЬ -->
+  <section id="v-new" class="view" hidden>
+    <h1>Как прошёл день?</h1>
+    <p class="lede">Расскажите, как рассказали бы близкому другу: погода, свет, запахи, звуки, люди рядом, мелкие детали. Система прочитает настроение, посмотрит на свет в фотографиях, послушает песню и соберёт страницу дневника.</p>
+    <div class="form">
+      <div class="card">
+        <div class="step">1 · Запись</div>
+        <label class="field"><span>Дата</span><input type="date" id="f-date"></label>
+        <textarea id="f-text" placeholder="Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао и долго разговаривали…"></textarea>
+        <div class="hint" id="f-text-hint"></div>
+      </div>
+      <div class="card">
+        <div class="step">2 · Фото дня</div>
+        <label class="drop" id="f-drop"><input type="file" id="f-photos" accept="image/*" multiple><span>Перетащите сюда или выберите 1–8 фото</span></label>
+        <div class="thumbs" id="f-thumbs"></div>
+        <div class="hint" id="f-photo-hint"></div>
+      </div>
+      <div class="card">
+        <div class="step">3 · Песня дня</div>
+        <div class="seg" id="f-song-mode"><button data-m="file" class="on">Аудиофайл</button><button data-m="link">Ссылка</button></div>
+        <div id="f-song-file">
+          <label class="drop small" id="f-adrop"><input type="file" id="f-audio" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac"><span>MP3, M4A, WAV или OGG — полный аудиоанализ</span></label>
+          <div id="f-audio-info" class="analysis-line"></div>
+          <div id="f-wave-wrap" hidden>
+            <canvas id="f-wave" width="1200" height="128"></canvas>
+            <input type="range" id="f-ex-start" min="0" max="100" step="0.5" value="0">
+            <div class="muted small" id="f-ex-label"></div>
+          </div>
+        </div>
+        <div id="f-song-link" hidden>
+          <input type="url" id="f-url" placeholder="Ссылка на YouTube, Spotify, Яндекс Музыку, SoundCloud…">
+          <div class="muted small" id="f-url-info" style="margin-top:6px"></div>
+          <div class="describe">
+            <div class="row"><span>Темп</span><div class="chips" data-k="tempo"><button data-v="slow">медленная</button><button data-v="mid">средняя</button><button data-v="fast">быстрая</button></div></div>
+            <div class="row"><span>Характер</span><div class="chips" data-k="mood"><button data-v="light">светлая</button><button data-v="dark">грустная</button><button data-v="unknown">не знаю</button></div></div>
+            <div class="row"><span>Жанр</span><div class="chips" data-k="genre" id="f-genres"></div></div>
+          </div>
+        </div>
+        <div class="pair">
+          <label class="field"><span>Исполнитель</span><input id="f-artist" placeholder="Frank Sinatra" autocomplete="off"></label>
+          <label class="field"><span>Название</span><input id="f-title" placeholder="Autumn in New York" autocomplete="off"></label>
+          <label class="field small"><span>Год</span><input id="f-year" inputmode="numeric" placeholder="1957" autocomplete="off"></label>
+        </div>
+        <div class="muted small" id="f-artist-hint" style="margin-top:8px"></div>
+      </div>
+      <div class="card optional no-artifact">
+        <div class="step">По желанию · Погода дня</div>
+        <button class="btn ghost smallb" id="f-weather">Добавить погоду этого дня</button>
+        <div class="muted small" id="f-weather-info" style="margin-top:8px"></div>
+        <p class="muted small">Местоположение спросим только с вашего согласия и не сохраним. Погоду возьмём у сервиса Open-Meteo.</p>
+      </div>
+    </div>
+    <div class="actions">
+      <button class="btn primary big" id="f-go" disabled>Собрать воспоминание</button>
+      <span class="muted" id="f-need"></span>
+    </div>
+  </section>
+
+  <!-- СТРАНИЦА ДНЯ -->
+  <section id="v-day" class="view" hidden>
+    <div class="day">
+      <div class="stage">
+        <div class="frame" id="d-frame"><canvas id="d-canvas"></canvas><div class="big-play"><span>▶</span></div></div>
+        <div class="controls">
+          <button class="btn icon" id="d-play" aria-label="Играть">▶</button>
+          <input type="range" id="d-seek" min="0" max="1000" value="0" aria-label="Время">
+          <span class="time" id="d-time">0:00 / 0:00</span>
+        </div>
+        <div class="controls2">
+          <button class="btn ghost smallb" id="d-voice">Послушать запись</button>
+          <button class="btn ghost smallb no-artifact" id="d-rec">Записать своим голосом</button>
+          <button class="btn ghost smallb" id="d-video">Сохранить видео</button>
+        </div>
+        <div class="voice-note" id="d-voice-note"></div>
+        <div id="d-embed"></div>
+      </div>
+      <aside class="panel">
+        <div class="folder-head">
+          <svg class="folder-ico" viewBox="0 0 40 32" aria-hidden="true"><path d="M2 6a3 3 0 0 1 3-3h10l4 4h16a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" fill="var(--rust)" opacity=".85"/></svg>
+          <input id="d-title" class="title-in" maxlength="70" aria-label="Название папки дня">
+        </div>
+        <div class="meta" id="d-meta"></div>
+        <div class="reg" id="d-reg"></div>
+        <div class="axes" id="d-axes"></div>
+        <details class="tune" id="d-tune">
+          <summary>Не похоже на ваш день? Поправьте ощущение</summary>
+          <div id="d-tune-rows"></div>
+          <div class="actions" style="margin-top:12px"><button class="btn ghost smallb" id="d-tune-reset">Вернуть как определила система</button><button class="btn ghost smallb" id="d-retitle">Другое название</button></div>
+        </details>
+        <h3>Почему день выглядит так</h3>
+        <ul class="why" id="d-why"></ul>
+        <h3>Папка дня</h3>
+        <ul class="files" id="d-files"></ul>
+        <div class="actions">
+          <button class="btn primary" id="d-zip">Скачать папку дня</button>
+          <button class="btn ghost danger smallb" id="d-del">Удалить день</button>
+        </div>
+      </aside>
+    </div>
+  </section>
+
+  <!-- КАК ЭТО РАБОТАЕТ -->
+  <section id="v-about" class="view about" hidden></section>
+</main>
+
+<div id="busy" hidden><div class="busy-card"><div class="spinner"></div><div id="busy-text">Собираю воспоминание…</div><div class="pbar"><i id="busy-bar"></i></div></div></div>
+<div id="dlg" hidden><div class="busy-card"><p id="dlg-text"></p><div class="actions" style="justify-content:center"><button class="btn ghost" id="dlg-no">Отмена</button><button class="btn primary" id="dlg-yes">Да</button></div></div></div>
+<div id="toast" hidden></div>
+
+<script>
+/*SCRIPT*/
+</script>
+</body>
+</html>

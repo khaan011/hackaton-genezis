@@ -1,0 +1,33 @@
+const { chromium } = require('/opt/npm-tools/node_modules/playwright');
+const fs = require('fs');
+(async () => {
+  fs.rmSync('/tmp/pv-profile-link', { recursive: true, force: true });
+  const browser = await chromium.launchPersistentContext('/tmp/pv-profile-link', { executablePath: '/usr/bin/google-chrome', viewport: { width: 1440, height: 1000 } });
+  const page = browser.pages()[0] || await browser.newPage();
+  const errs = []; page.on('pageerror', e => errs.push(e.message)); page.on('console', m => { if (m.type() === 'error' && !/404|Failed to load resource|youtube|ERR_/i.test(m.text())) errs.push(m.text()); });
+  await page.goto('http://localhost:8765/index.html');
+  await page.waitForSelector('#arch-grid .day-card', { timeout: 30000 });
+  const demoCount = await page.$$eval('#arch-grid .day-card', els => els.length);
+  const toast = await page.textContent('#toast');
+  // день с песней по ссылке
+  await page.click('nav [data-go="new"]');
+  await page.fill('#f-date', '2026-08-21');
+  await page.fill('#f-text', 'Вечером гуляли по набережной с девушкой, было тепло и тихо. Уличный музыкант играл старый джаз, мы ели мороженое и смотрели на закат над рекой.');
+  await page.setInputFiles('#f-photos', ['assets/photos/river_sunset.jpg']);
+  await page.waitForFunction(() => document.querySelectorAll('#f-thumbs .thumb').length === 1);
+  await page.click('#f-song-mode [data-m="link"]');
+  await page.fill('#f-url', 'https://www.youtube.com/watch?v=abcdefghijk');
+  await page.fill('#f-artist', 'Frank Sinatra'); await page.fill('#f-title', 'Fly Me to the Moon');
+  await page.waitForTimeout(500);
+  const hint = await page.textContent('#f-artist-hint');
+  const chips = await page.$$eval('.chips button.on', b => b.map(x => x.textContent));
+  await page.click('#f-go');
+  await page.waitForSelector('#v-day:not([hidden])', { timeout: 60000 });
+  await page.waitForSelector('#busy', { state: 'hidden' });
+  const info = await page.evaluate(() => { const st = PV.App.state; return { title: st.day.title, reg: st.S.register, audio: !!st.audioBuf, dur: st.renderer.duration, bpm: st.S.bpm, embed: !!document.querySelector('#d-embed iframe'), why: [...document.querySelectorAll('#d-why li')].slice(0, 2).map(l => l.textContent) }; });
+  await page.click('#d-play'); await page.waitForTimeout(1200);
+  const t = await page.evaluate(() => PV.App.state.player.t);
+  await page.screenshot({ path: 'out/link_day.png' });
+  console.log(JSON.stringify({ demoCount, toast, hint, chips, info, playedT: +t.toFixed(2), errs }, null, 1));
+  await browser.close();
+})().catch(e => { console.error(e); process.exit(1); });
