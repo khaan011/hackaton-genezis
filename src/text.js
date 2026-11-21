@@ -179,9 +179,22 @@ function analyzeText(text, dateStr) {
   /* сущности для названия */
   /* для названия: «говорили о доме» — тема, не место; кто только звонил или писал — не рядом */
   const REMOTE = /(звон|позвон|написал|сообщени|переписк|видеосвяз|созвон)/i;
-  const nearText = clauses.filter((c) => !REMOTE.test(c)).join('. ').replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+/gi, ' ');
+  const sentences = String(text || '').split(/(?<=[.!?…])\s+/).filter((x) => x.trim());
+  const nearText = sentences.filter((c) => !REMOTE.test(c)).join(' ').replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+/gi, ' ');
   const pdoc = prepare(nearText);
   T.place = pickEntity(pdoc, L.places);
+  /* время суток для названия — из той фразы, где названо место, а не из другой части дня */
+  T.placeTod = null;
+  if (T.place) {
+    /* идём по фразам по порядку: время суток действует, пока его не сменят */
+    let cur = null;
+    for (const c of sentences) {
+      const cd = prepare(c.replace(/(\d+|один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)\s+(утра|вечера|ночи|дня)/gi, ''));
+      let bk = null, bv = 0; for (const k of Object.keys(L.tod)) { const v = scan(cd, L.tod[k]).score; if (v > bv) { bv = v; bk = k; } }
+      if (bk) cur = bk;
+      if (!REMOTE.test(c) && pickEntity(prepare(c), [T.place])) { T.placeTod = cur; break; }
+    }
+  }
   const companions = L.who.filter((w) => !w.alone);
   T.who = pickEntity(pdoc, companions) || pickEntity(pdoc, L.who.filter((w) => w.alone));
   const kindOrder = ['taste', 'light', 'sound', 'thing', 'weather'];

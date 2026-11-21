@@ -9,7 +9,7 @@ const wc = (s) => s.trim().split(/\s+/).length;
 
 function makeTitles(T, ctx) {
   const r = U.rng(ctx.seed || 1);
-  const todKey = ctx.tod || T.tod || 'day';
+  const todKey = T.placeTod || ctx.tod || T.tod || 'day';
   const tod = L.todNoun[todKey];
   const sA = L.seasonAdj[ctx.season || T.season] || L.seasonAdj.autumn;
   const place = T.place, who = T.who, detail = T.detail, ev = T.event;

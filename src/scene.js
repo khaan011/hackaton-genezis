@@ -131,7 +131,7 @@ function plan(T, S, seed) {
     /* «в шесть утра», «к десяти вечера» — это время, а не смена времени суток */
     const todDoc = PV.Text.prepare(text.replace(/(\d+|один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)\s+(утра|вечера|ночи|дня)/gi, ''));
     /* место ищем без темы разговора («о доме») и без направления («на работу», «в школу»), транспорт важнее цели */
-    const placeText = text.replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+(\s+[^\s,.;]+)?/gi, ' ').replace(/(^|\s)(на|в|во|к)\s+(работу|учёбу|учебу|школу|универ\S*|офис|пары)/gi, ' ');
+    const placeText = text.replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+(\s+[^\s,.;]+)?/gi, ' ').replace(/(^|\s)(на|в|во|к)\s+(работу|учёбу|учебу|школу|университет|универ|офис|пары)(?=[\s,.;!?]|$)/gi, ' ');
     const pdoc = PV.Text.prepare(placeText);
     const transport = PV.Text.scan(pdoc, ['автобус', 'трамва', 'метро', 'такси', 'электрич', 'поезд', 'маршрутк', 'машин']).score > 0;
     const p = transport ? 'road' : best(pdoc, K.place);
@@ -510,20 +510,23 @@ function hueShare(a, test) {
   return all ? w / all : 0;
 }
 function fitPhoto(sc, a) {
-  let s = 0;
   const dark = a.lum < 0.36 || a.darkFrac > 0.45;
-  if (sc.tod === 'night') s += dark ? 2 : -1.2; else if (sc.tod === 'evening') s += (a.warm > 0.15 ? 1 : 0) + (dark ? 0.4 : 0); else s += dark ? -1 : 0.6;
-  const greenYellow = hueShare(a, (h) => h > 60 && h < 150), orange = hueShare(a, (h) => h > 35 && h < 90), blue = hueShare(a, (h) => h > 200 && h < 290);
-  if (['park', 'forest', 'dacha'].includes(sc.place) || sc.objs.includes('leaves')) s += 2.2 * (greenYellow + orange);
-  if (sc.place === 'office' || sc.objs.includes('laptop')) s += 2 * blue + (dark ? 0.8 : 0);
-  if (sc.place === 'water') s += 2 * blue;
-  if (sc.objs.includes('cup') || sc.place === 'cafe') s += 1.2 * orange + (a.warm > 0.2 ? 0.6 : 0);
-  if (sc.objs.includes('cake') || sc.objs.includes('balloons') || sc.place === 'party') s += a.sat > 0.4 ? 1.2 : 0.3;
-  if (sc.objs.includes('fire')) s += dark && a.warm > 0.1 ? 1.5 : 0;
-  if (sc.weather.includes('snow') || sc.season === 'winter') s += a.sat < 0.18 && a.lum > 0.55 ? 1.5 : 0;
-  if (sc.weather.includes('rain')) s += dark ? 0.6 : 0;
-  if (sc.objs.includes('phone')) s -= 3; /* звонок остаётся нарисованным телефоном */
-  return s;
+  const green = hueShare(a, (h, L) => h > 85 && h < 160 && L > 30), yellow = hueShare(a, (h, L) => h > 60 && h <= 85 && L > 45);
+  const brown = hueShare(a, (h, L) => h > 25 && h < 75 && L < 58), blue = hueShare(a, (h) => h > 200 && h < 290);
+  /* содержание: без совпадения по месту или предмету снимок в сцену не ставим */
+  let c = 0;
+  if (['park', 'forest', 'dacha'].includes(sc.place) || sc.objs.includes('leaves')) c = Math.max(c, 3 * (green + yellow) - 1.2 * brown);
+  if (sc.objs.includes('cup')) c = Math.max(c, 3 * brown + (a.warm > 0.2 ? 0.6 : 0) - 1.5 * green);
+  if (sc.place === 'office' || sc.objs.includes('laptop')) c = Math.max(c, 2.4 * blue + (dark ? 1 : 0));
+  if (sc.place === 'water') c = Math.max(c, 2.4 * blue + (dark ? 0 : 0.4));
+  if (sc.objs.includes('cake') || sc.objs.includes('balloons') || sc.place === 'party') c = Math.max(c, a.sat > 0.4 ? 1.6 : 0.4);
+  if (sc.objs.includes('fire')) c = Math.max(c, dark && a.warm > 0.1 ? 1.8 : 0);
+  if (sc.weather.includes('snow')) c = Math.max(c, a.sat < 0.18 && a.lum > 0.55 ? 1.6 : 0);
+  if (sc.place === 'city' || sc.objs.includes('lamps')) c = Math.max(c, dark ? 1.4 + blue : 0);
+  if (c <= 0 || sc.objs.includes('phone')) return -1;
+  /* время суток — поправка */
+  const t = sc.tod === 'night' ? (dark ? 0.5 : -0.8) : sc.tod === 'evening' ? (a.warm > 0.15 ? 0.2 : 0) : (dark ? -0.6 : 0.2);
+  return c + t;
 }
 /* жадно: лучшие пары «снимок — сцена», не больше половины сцен, без двух снимков подряд;
    подходящего места нет — снимок уходит в конец как «фото дня» */
@@ -534,7 +537,8 @@ function matchPhotos(scenes, photos) {
   const bySc = new Map(), used = new Set(), limit = Math.max(1, Math.floor(scenes.length / 2));
   for (const pr of pairs) {
     if (bySc.size >= limit) break;
-    if (pr.s < 0.4 || bySc.has(pr.i) || used.has(pr.k) || bySc.has(pr.i - 1) || bySc.has(pr.i + 1)) continue;
+    /* явное совпадение по месту важнее правила «без двух снимков подряд» */
+    if (pr.s < 0.9 || bySc.has(pr.i) || used.has(pr.k) || (pr.s < 2 && (bySc.has(pr.i - 1) || bySc.has(pr.i + 1)))) continue;
     bySc.set(pr.i, pr.k); used.add(pr.k);
   }
   const extra = photos.map((_, k) => k).filter((k) => !used.has(k)).slice(0, 1);

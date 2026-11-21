@@ -93,5 +93,25 @@ for (const d of days) {
   check(m.bySc.get(parkIdx) === 1, 'жёлто-зелёный снимок встал в сцену парка');
   check(m.bySc.get(nightIdx) === 0 || m.extra.includes(0), 'тёмный снимок — к ночи или в конец, но не в парк');
 }
+// «Вместе» на дне жюри: фото по месту и предмету, фразы без места остаются нарисованными
+{
+  const text = 'Утром мне позвонила мама. Потом я одна ехала на работу в пустом автобусе. В офисе мы с командой пили кофе и спорили о дизайне. Вечером мы с друзьями гуляли по парку, под ногами шуршали листья. И мы долго говорили о доме. Ночью смотрела в окно на огни города.';
+  const T = PV.Text.analyze(text, '2026-10-20');
+  const S = PV.Mood.buildStyle({ text: T, photos: photo({}), music: music({}), seed: 5 });
+  const sc = PV.Scene.plan(T, S, 5);
+  const title = PV.Title.make(T, { tod: S.tod, season: S.season, register: S.register, seed: 5 })[0].s;
+  const park = { lum: 0.58, darkFrac: 0.08, warm: 0.3, sat: 0.45, palette: [{ rgb: [120, 160, 60], weight: 0.45 }, { rgb: [225, 185, 60], weight: 0.35 }, { rgb: [200, 200, 190], weight: 0.2 }] };
+  const cocoa = { lum: 0.42, darkFrac: 0.2, warm: 0.5, sat: 0.4, palette: [{ rgb: [110, 70, 45], weight: 0.55 }, { rgb: [200, 160, 120], weight: 0.3 }, { rgb: [240, 230, 220], weight: 0.15 }] };
+  const office = { lum: 0.22, darkFrac: 0.65, warm: -0.3, sat: 0.3, palette: [{ rgb: [25, 35, 80], weight: 0.6 }, { rgb: [90, 140, 220], weight: 0.25 }, { rgb: [240, 220, 160], weight: 0.15 }] };
+  const m = PV.Scene.matchPhotos(sc, [park, cocoa, office]);
+  console.log('\n== «Вместе» на дне жюри   название:', title);
+  sc.forEach((x, i) => console.log('  ', `«${x.caption}» → ${PV.Scene.describe(x)} [${x.tod}]`, m.bySc.has(i) ? `📷 ${['парк', 'какао', 'офис'][m.bySc.get(i)]}` : ''));
+  const at = (re) => sc.findIndex((x) => re.test(x.text));
+  check(sc[at(/В офисе/)].place === 'office', '«В офисе … пили кофе» — офис, а не дорога');
+  check(m.bySc.get(at(/парку/)) === 0, 'фото парка — к фразе про парк');
+  check(m.bySc.get(at(/кофе/)) === 1, 'фото какао — к фразе про кофе');
+  check(!m.bySc.has(at(/о доме/)), '«говорили о доме» остаётся нарисованным');
+  check(!/офис/i.test(title) || !/ночь/i.test(title), `время суток и место в названии — из одной части дня («${title}»)`);
+}
 console.log(fails ? `\nПровалено проверок: ${fails}` : '\nВсе проверки пройдены');
 process.exitCode = fails ? 1 : 0;
