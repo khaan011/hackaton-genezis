@@ -13,7 +13,7 @@ const K = {
     office: ['офис', 'код', 'ноут', 'компьют', 'монитор', 'дедлайн', 'хакатон', 'программ', 'созвон', 'работ'],
     party: ['день рождения', 'праздн', 'вечерин', 'торт', 'шарик', 'концерт', 'клуб', 'танц', 'сюрприз', 'гост'],
     cafe: ['кафе', 'кофейн', 'ресторан', '=бар', 'пиццер'],
-    home: ['=дома', 'квартир', 'комнат', 'кухн', '=окно', '=окна', '=окном', 'окне', 'кроват', 'диван', 'балкон', 'проснул', 'плед'],
+    home: ['=дома', 'квартир', 'комнат', 'кухн', 'кроват', 'диван', 'балкон', 'проснул', 'плед'],
     dacha: ['дач', 'деревн', 'бабушк', 'огород', 'домик', 'яблон', 'забор'],
     water: ['=река', '=реки', '=реке', '=рекой', '=реку', 'речк', '=море', '=моря', '=морем', 'озер', 'пляж', 'берег', 'набережн', 'пруд', 'купал', 'волн'],
     mountain: ['=горы', '=горах', '=гор', 'поход', 'вершин', 'ущель'],
@@ -48,7 +48,7 @@ const K = {
     snowman: ['снегович'],
   },
   people: {
-    alone: ['=одна', '=один', '=одной', 'одиноч', '=сам', '=сама', 'никого', 'наедине'],
+    alone: ['=одна', '=один', '=одной', 'одиноч', '=сам', '=сама', 'никого', 'наедине', 'пуст'],
     many: ['друз', 'команд', 'гост', 'компани', 'семь', '=всей', 'ребят', 'толп', 'родител'],
     two: ['вдвоём', 'вдвоем', '=мы', '=нас', 'девушк', '=парнем', '=парень', '=с ним', '=с ней', 'подруг', '=друг', '=другом', '=мама', '=мамой', '=папой', 'обнял', 'поцел'],
   },
@@ -60,6 +60,8 @@ const K = {
   },
 };
 const INDOOR = new Set(['office', 'party', 'cafe', 'home']);
+const OBJ_KEYS = new Set(['cup', 'laptop', 'cake', 'balloons', 'fire', 'books', 'flowers', 'guitar', 'music', 'phone']);
+const OBJ_RU_EXTRA = { phone: 'телефон' };
 const PLACE_RU = { office: 'офис', party: 'праздник', cafe: 'кафе', home: 'дом', dacha: 'дача', water: 'вода', mountain: 'горы', forest: 'лес', park: 'парк', road: 'дорога', city: 'город' };
 const OBJ_RU = { cup: 'кружка', laptop: 'ноутбук', cake: 'торт', balloons: 'шарики', fire: 'костёр', guitar: 'гитара', lamps: 'огни', leaves: 'листья', stars: 'звёзды', moon: 'луна', flowers: 'цветы', books: 'книги', music: 'музыка', confetti: 'конфетти', boat: 'лодка', snowman: 'снеговик' };
 const WEATHER_RU = { rain: 'дождь', snow: 'снег', fog: 'туман', sun: 'солнце', wind: 'ветер' };
@@ -70,14 +72,36 @@ function best(doc, group) {
   for (const k of Object.keys(group)) { const v = PV.Text.scan(doc, group[k]).score; if (v > bv) { bv = v; bk = k; } }
   return bk;
 }
+/* кто в кадре по фразе: компания и двое — если они рядом; звонок или переписка — человек не рядом;
+   глагол прошедшего времени в единственном числе без «мы» — одна фигура */
+const REMOTE = /(звон|позвон|написал|написала|сообщени|переписк|видеосвяз|созвон)/i;
+function peopleOf(doc, text) {
+  const many = PV.Text.scan(doc, K.people.many).score, two = PV.Text.scan(doc, K.people.two).score, alone = PV.Text.scan(doc, K.people.alone).score;
+  const t = String(text).toLowerCase();
+  if ((many || two) && REMOTE.test(t)) return 'remote';
+  if (many >= two && many > 0) return 'many';
+  if (two > 0 && two >= alone) return 'two';
+  if (alone > 0) return 'alone';
+  const verbs = t.split(/[^а-яё]+/).filter((w) => /(ла|лся|лась)$/.test(w) && w.length > 3 && !/^(была|стала|начала|казалась|оставалась|осталась|пила|мела)$/.test(w));
+  if (!/(^|\s)мы(\s|$)/.test(t) && (/(^|\s)я(\s|$)/.test(t) || verbs.length)) return 'alone';
+  return null;
+}
 function all(doc, group) { return Object.keys(group).filter((k) => PV.Text.scan(doc, group[k]).score > 0); }
 
 /* короткая подпись сцены: 2–7 слов из самой фразы */
+const CUT_BEFORE = /^(и|а|но|потом|затем|когда|пока|чтобы|потому|хотя|ведь|где|который|которая|которые)$/i;
 function shortCap(s) {
-  const words = String(s).replace(/[«»"]/g, '').split(/\s+/).filter(Boolean);
-  let out = words.slice(0, 7).join(' ');
-  if (words.length > 7) out = out.replace(/[,;:—-]+$/, '') + '…';
-  return U.cap(out.replace(/[.!?]+$/, ''));
+  const clean = String(s).replace(/[«»"]/g, '').replace(/[.!?…]+$/, '').trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length <= 12) return U.cap(clean);
+  /* ищем конец мысли: запятая/тире или союз — не раньше 4-го и не позже 12-го слова */
+  let cut = -1;
+  for (let i = 3; i < Math.min(12, words.length); i++) {
+    if (/[,;:—–-]$/.test(words[i])) { cut = i + 1; }
+    else if (CUT_BEFORE.test(words[i + 1] || '') && i >= 4) { cut = i + 1; }
+  }
+  if (cut < 0) cut = 10;
+  return U.cap(words.slice(0, cut).join(' ').replace(/[,;:—–-]+$/, ''));
 }
 
 /* ---------- план сцен по записи ---------- */
@@ -115,12 +139,28 @@ function plan(T, S, seed) {
     if (wNow.length) wState = [...new Set([...wState.filter((w) => w === 'snow' || w === 'fog'), ...wNow])];
     const weather = wState.filter((w) => w !== 'sun' || !['evening', 'night'].includes(tod));
     /* люди держатся, пока текст их не сменит */
-    const pNow = best(doc, { alone: K.people.alone, many: K.people.many, two: K.people.two });
-    if (pNow) who = pNow; else if (!who && i === 0) who = gPeople === 'alone' ? null : gPeople;
-    const people = who;
+    const pNow = peopleOf(doc, text);
+    let people;
+    if (pNow === 'remote') { people = 'alone'; objs.unshift('phone'); } /* звонок или переписка: крупно телефон; спутник никуда не делся */
+    else {
+      if (pNow) who = pNow;
+      else if (!who && i === 0) who = gPeople === 'alone' ? null : gPeople;
+      /* «гуляли», «пили» без «я» — нас было несколько */
+      const plural = String(text).toLowerCase().split(/[^а-яё]+/).some((w) => w.length > 4 && /ли$/.test(w) && !/^(были|стали|начали|могли|шли)$/.test(w));
+      if (!pNow && plural && (!who || who === 'alone')) who = gPeople && gPeople !== 'alone' ? gPeople : 'two';
+      people = who;
+    }
     /* фраза только о предмете — крупный план; иначе общий план места */
-    const shot = !p && objs.some((o) => ['cup', 'cake', 'laptop', 'books', 'flowers', 'guitar'].includes(o)) ? 'close' : 'wide';
-    scenes.push({ i, text, caption: shortCap(text), place, tod, weather, objs, people, shot, season: S.season, seed: (seed + i * 977) >>> 0 });
+    let shot = !p && objs.some((o) => ['cup', 'cake', 'laptop', 'books', 'flowers', 'guitar', 'phone'].includes(o)) ? 'close' : 'wide';
+    const prev = scenes[scenes.length - 1];
+    if (prev && prev.place === place && prev.shot === shot) {
+      /* то же место второй раз подряд: крупный план предмета, вид из окна или другой ракурс */
+      if (shot === 'wide' && objs.some((o) => OBJ_KEYS.has(o))) shot = 'close';
+      else if (shot === 'wide' && INDOOR.has(place)) shot = 'window';
+      else shot = shot === 'close' ? 'wide' : 'wide';
+    }
+    const flip = prev && prev.place === place && !prev.flip;
+    scenes.push({ flip, i, text, caption: shortCap(text), place, tod, weather, objs, people, shot, season: S.season, seed: (seed + i * 977) >>> 0 });
   });
   /* меньше трёх сцен — добавляем крупный план детали и общий план */
   if (scenes.length < 3) {
@@ -134,9 +174,10 @@ function plan(T, S, seed) {
 function describe(sc) {
   const bits = [PLACE_RU[sc.place] || sc.place];
   sc.weather.forEach((w) => bits.push(WEATHER_RU[w]));
-  sc.objs.forEach((o) => bits.push(OBJ_RU[o]));
+  sc.objs.forEach((o) => bits.push(OBJ_RU[o] || OBJ_RU_EXTRA[o]));
   if (sc.people) bits.push(PEOPLE_RU[sc.people]);
   if (sc.shot === 'close') bits.push('крупный план');
+  if (sc.shot === 'window') bits.push('вид из окна');
   return [...new Set(bits)].filter(Boolean).join(', ');
 }
 
@@ -280,7 +321,17 @@ function headphones(ctx, x, y, s, P) {
   ctx.strokeStyle = css(P.ink); ctx.lineWidth = s * 0.1; ctx.beginPath(); ctx.arc(x, y, s * 0.5, Math.PI, 0); ctx.stroke();
   ctx.fillStyle = css(P.sat); ctx.fillRect(x - s * 0.62, y - s * 0.05, s * 0.24, s * 0.4); ctx.fillRect(x + s * 0.38, y - s * 0.05, s * 0.24, s * 0.4);
 }
-const OBJ_DRAW = { cup, laptop, cake, balloons, fire, books, flowers, guitar, music: headphones };
+function phone(ctx, x, y, s, P) {
+  glow(ctx, x, y - s * 1.1, s * 2.2, [170, 210, 255], 0.35);
+  ctx.save(); ctx.translate(x, y - s); ctx.rotate(-0.12);
+  ctx.fillStyle = css([24, 24, 30]); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-s * 0.5, -s, s, s * 2, s * 0.14) : ctx.rect(-s * 0.5, -s, s, s * 2); ctx.fill();
+  ctx.fillStyle = css([190, 220, 255]); ctx.fillRect(-s * 0.42, -s * 0.86, s * 0.84, s * 1.66);
+  ctx.fillStyle = css(P.sat); ctx.beginPath(); ctx.arc(0, -s * 0.35, s * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = css([60, 190, 110]); ctx.beginPath(); ctx.arc(-s * 0.2, s * 0.5, s * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = css([230, 70, 70]); ctx.beginPath(); ctx.arc(s * 0.2, s * 0.5, s * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+const OBJ_DRAW = { cup, laptop, cake, balloons, fire, books, flowers, guitar, music: headphones, phone };
 
 /* ---------- погода поверх ---------- */
 function weather(ctx, sc, P, rnd, indoor) {
@@ -345,6 +396,48 @@ function outdoor(ctx, sc, P, rnd) {
 }
 
 /* ---------- сцена в помещении ---------- */
+function cafeScene(ctx, sc, P, rnd) {
+  const night = P.night || P.eve;
+  const wall = mix([120, 74, 52], P.sat, 0.25), wallC = night ? mix(wall, [24, 18, 22], 0.5) : wall;
+  ctx.fillStyle = grad(ctx, 0, 0, 0, SH, [[0, wallC], [1, mix(wallC, [0, 0, 0], 0.35)]]); ctx.fillRect(0, 0, SW, SH);
+  /* витрина с улицей */
+  const wx = SW * 0.08, wy = SH * 0.1, ww = SW * 0.84, wh = SH * 0.34;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip(); ctx.translate(wx, wy); ctx.scale(ww / SW, wh / (SH * 0.62));
+  outdoor(ctx, { ...sc, place: 'city', people: null, objs: sc.objs.filter((o) => ['lamps', 'moon', 'stars'].includes(o)) }, P, rnd);
+  ctx.scale(SW / ww, SH * 0.62 / wh); weather(ctx, sc, P, rnd, false); ctx.restore();
+  ctx.strokeStyle = css([40, 28, 22]); ctx.lineWidth = 14; ctx.strokeRect(wx, wy, ww, wh);
+  for (let i = 1; i < 3; i++) { ctx.beginPath(); ctx.moveTo(wx + ww * i / 3, wy); ctx.lineTo(wx + ww * i / 3, wy + wh); ctx.stroke(); }
+  /* подвесные лампы */
+  for (let i = 0; i < 4; i++) {
+    const x = SW * (0.16 + i * 0.23), y = SH * (0.5 + (i % 2) * 0.03);
+    ctx.strokeStyle = css([30, 24, 20]); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y - 20); ctx.stroke();
+    ctx.fillStyle = css([40, 34, 30]); ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x + 30, y); ctx.lineTo(x + 14, y - 24); ctx.lineTo(x - 14, y - 24); ctx.fill();
+    glow(ctx, x, y + 10, 190, P.warm, night ? 0.5 : 0.32);
+  }
+  /* стойка */
+  ctx.fillStyle = css(mix([86, 56, 40], P.dark, 0.2)); ctx.fillRect(0, SH * 0.62, SW * 0.42, SH * 0.1);
+  ctx.fillStyle = css([210, 200, 190], 0.8); for (let i = 0; i < 5; i++) ctx.fillRect(SW * 0.03 + i * 60, SH * 0.6, 30, 22);
+  /* столики */
+  [[0.62, 0.84], [0.26, 0.9]].forEach(([fx, fy], k) => {
+    const x = SW * fx, y = SH * fy;
+    ctx.fillStyle = css([60, 42, 32]); ctx.beginPath(); ctx.ellipse(x, y - 60, 130, 26, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(x - 8, y - 60, 16, 70);
+    if (k === 0) { people(ctx, sc.people || 'alone', x - 30, y + 20, 230, P, rnd, night); cup(ctx, x + 60, y - 70, 50, P, rnd); }
+    else { person(ctx, x - 70, y + 10, 200, mix(P.ink, P.dark, 0.5), rnd); cup(ctx, x + 20, y - 70, 40, P, rnd); }
+  });
+}
+function windowScene(ctx, sc, P, rnd) {
+  /* вид из окна крупно: погода и время суток на весь кадр, силуэт у подоконника */
+  ctx.save(); ctx.scale(1, 1 / 0.62);
+  outdoor(ctx, { ...sc, place: sc.place === 'office' ? 'city' : sc.season === 'winter' ? 'city' : 'park', people: null, objs: sc.objs.filter((o) => ['stars', 'moon', 'lamps', 'leaves'].includes(o)) }, P, rnd);
+  ctx.restore(); weather(ctx, sc, P, rnd, false);
+  const fr = mix([230, 220, 205], P.light, 0.2);
+  ctx.strokeStyle = css(fr); ctx.lineWidth = 40; ctx.strokeRect(20, 20, SW - 40, SH * 0.78);
+  ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(SW / 2, 20); ctx.lineTo(SW / 2, SH * 0.78 + 20); ctx.stroke();
+  ctx.fillStyle = css(mix(fr, P.dark, 0.25)); ctx.fillRect(0, SH * 0.78, SW, SH);
+  if (sc.people) person(ctx, SW * 0.24, SH * 1.02, 420, mix(P.ink, [10, 10, 16], 0.4), rnd, 0.02);
+  const o = sc.objs.find((x) => ['cup', 'books', 'flowers'].includes(x));
+  if (o) OBJ_DRAW[o](ctx, SW * 0.72, SH * 0.8, 80, P, rnd);
+}
 function indoorScene(ctx, sc, P, rnd) {
   const night = P.night || P.eve;
   const wall = sc.place === 'office' ? mix([70, 78, 96], P.dark, 0.2) : sc.place === 'party' ? mix(P.sat, [250, 220, 200], 0.55) : mix([230, 214, 192], P.light, 0.3);
@@ -386,7 +479,10 @@ function closeup(ctx, sc, P, rnd) {
 function paint(sc, S) {
   const c = PV.Img.makeCanvas(SW, SH), ctx = c.getContext('2d');
   const rnd = U.rng(sc.seed), P = palette(sc, S);
+  if (sc.flip) { ctx.translate(SW, 0); ctx.scale(-1, 1); }
   if (sc.shot === 'close') closeup(ctx, sc, P, rnd);
+  else if (sc.shot === 'window') windowScene(ctx, sc, P, rnd);
+  else if (sc.place === 'cafe') cafeScene(ctx, sc, P, rnd);
   else if (INDOOR.has(sc.place)) indoorScene(ctx, sc, P, rnd);
   else { outdoor(ctx, sc, P, rnd); weather(ctx, sc, P, rnd, false); }
   /* мягкая виньетка */

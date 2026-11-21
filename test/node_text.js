@@ -1,5 +1,5 @@
 // Быстрые проверки разбора текста, названий и выбора режима (node).
-require('../src/util.js'); require('../src/lexicon.js'); require('../src/text.js'); require('../src/title.js'); require('../src/mood.js');
+require('../src/util.js'); require('../src/lexicon.js'); require('../src/text.js'); require('../src/title.js'); require('../src/mood.js'); require('../src/scene.js');
 const PV = globalThis.PV;
 const assert = require('assert');
 let fails = 0;
@@ -45,6 +45,28 @@ for (const d of days) {
 {
   const T = PV.Text.analyze('Вечером я шла домой одна под дождём.', '2026-09-28');
   check(!(T.place && T.place.nom === 'дом'), '«шла домой» не превращается в «дома»');
+}
+// сцены из текста: кто в кадре, погода по ходу дня, подписи без обрывов
+{
+  const text = 'Утром мы с подругой пили кофе в кафе у окна, за окном шёл снег и было очень уютно и тепло. Потом позвонила мама. Днём гуляли по набережной, дул ветер. Вечером зажглись огни. Домой ехала в пустом трамвае и слушала музыку.';
+  const T = PV.Text.analyze(text, '2026-12-05');
+  const S = PV.Mood.buildStyle({ text: T, photos: photo({}), music: music({}), seed: 7 });
+  const sc = PV.Scene.plan(T, S, 7);
+  console.log('\n== сцены');
+  sc.forEach((x) => console.log('  ', `«${x.caption}» → ${PV.Scene.describe(x)} [${x.tod}]`));
+  check(sc.length >= 3 && sc.length <= 7, `сцен от 3 до 7 (${sc.length})`);
+  check(sc.every((x) => !x.caption || (!/…$/.test(x.caption) && !/\s(и|а|но|с|в|на)$/i.test(x.caption))), 'подписи не обрываются на полуслове');
+  check(sc.every((x) => !x.caption || x.caption.split(/\s+/).length <= 12), 'подписи не длиннее 12 слов');
+  check(sc[0].people === 'two', 'утром в кафе — двое');
+  const call = sc.find((x) => /позвонила/.test(x.text));
+  check(!call || call.people !== 'two', '«позвонила мама» не рисует маму рядом');
+  const tram = sc.find((x) => /трамва/.test(x.text));
+  check(tram && tram.people === 'alone', '«домой ехала в пустом трамвае» — одна фигура');
+  check(sc[0].place === 'cafe', 'первая сцена — кафе');
+  const rainT = PV.Text.analyze('Утром гуляли с подругой по парку. Пили какао на скамейке. Вечером пошёл дождь. Я шла домой одна.', '2026-10-10');
+  const rs = PV.Scene.plan(rainT, PV.Mood.buildStyle({ text: rainT, photos: photo({}), music: music({}), seed: 3 }), 3);
+  check(!rs[0].weather.includes('rain') && rs[rs.length - 1].weather.includes('rain'), 'дождь начинается с момента, когда о нём сказано');
+  check(rs[0].people === 'two' && rs[rs.length - 1].people === 'alone', 'двое держатся, пока текст не скажет «одна»');
 }
 console.log(fails ? `\nПровалено проверок: ${fails}` : '\nВсе проверки пройдены');
 process.exitCode = fails ? 1 : 0;

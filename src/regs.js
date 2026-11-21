@@ -489,8 +489,11 @@ PV.Regs.matisse = (R) => {
   const cols = [...pal.slice(0, 4), [250, 247, 240], [22, 22, 26]].filter((c) => U.dist(c, S.bg || [0, 0, 0]) > 60);
   let shapes = [];
   const blobs = [];
+  const story = !!R.day.captions;
   const place = (j) => {
     const r = shotRnd(R, j, 11), left = j % 2 === 0;
+    /* сцены из текста — главное в кадре: около 60% площади вместо трети */
+    if (story) return { cx: W / 2 + (left ? -1 : 1) * (20 + r() * 30), cy: LAY.TOP + 560 + r() * 60, sx: 440 + r() * 20, sy: 540 + r() * 30, rot: (r() - 0.5) * 0.08, prevCorner: left ? 1 : -1 };
     return { cx: W / 2 + (left ? -1 : 1) * (60 + r() * 60), cy: LAY.TOP + 520 + r() * 160, sx: 330 + r() * 40, sy: 380 + r() * 50, rot: (r() - 0.5) * 0.12, prevCorner: left ? 1 : -1 };
   };
   const drawBlob = (ctx, pi, variant, pts, cx, cy, sx, sy, rot, sc, a) => {
@@ -508,7 +511,7 @@ PV.Regs.matisse = (R) => {
   };
   return {
     async prepPhoto(i) {
-      const ph = R.photos[i], s = R.scale, w = Math.round(760 * s), h = Math.round(w / (ph.a.aspect || 1));
+      const ph = R.photos[i], s = R.scale, w = Math.round((story ? 960 : 760) * s), h = Math.round(w / (ph.a.aspect || 1));
       blobs[i] = blobPts(U.rng(S.seed + i * 17));
       return grade(ph.bmp, w, h, S, { sat: Math.max(1.15, S.sat * 1.2), contrast: 1.06, draw: (ctx, cw, ch) => ctx.drawImage(ph.bmp, 0, 0, cw, ch) });
     },
@@ -516,7 +519,7 @@ PV.Regs.matisse = (R) => {
       const r = U.rng(S.seed ^ 0x77);
       const spots = [[150, 340], [930, 320], [120, 1000], [960, 900], [210, 1330], [880, 1340], [540, 280], [560, 1300], [80, 660], [1000, 640]];
       shapes = spots.map(([x, y], i) => ({
-        x: x + (r() - 0.5) * 80, y: y + (r() - 0.5) * 80, type: r.pick(['algae', 'algae', 'star', 'circle', 'leaf']), size: 120 + r() * 170,
+        x: x + (r() - 0.5) * 80, y: y + (r() - 0.5) * 80, type: r.pick(['algae', 'algae', 'star', 'circle', 'leaf']), size: story ? 80 + r() * 90 : 120 + r() * 170,
         lobes: 6 + Math.floor(r() * 5), points: 5 + Math.floor(r() * 4), rot: r() * 6.28, ph: r() * 6.28, col: cols[i % cols.length], front: r() < 0.3,
       }));
     },
@@ -524,14 +527,22 @@ PV.Regs.matisse = (R) => {
     shots(ctx, t) {
       const st = state(R, t);
       const bounce = R.pulse(t, 5) * (0.4 + S.pulse);
+      const j = st ? st.shot.j : 0;
       const drawShapes = (front) => {
-        for (const sh of shapes) {
-          if (sh.front !== front) continue;
-          ctx.save(); ctx.translate(sh.x, sh.y + Math.sin(t * 0.9 + sh.ph) * 8);
+        shapes.forEach((sh, i) => {
+          if (sh.front !== front) return;
+          /* в сценах из текста: в каждом кадре свой поднабор фигур и свои места, ничего не лежит поверх сцены */
+          let x = sh.x, y = sh.y;
+          if (story) {
+            if ((i + j) % 2 === 1) return;
+            const r = shotRnd(R, j * 31 + i, 5); x += (r() - 0.5) * 180; y += (r() - 0.5) * 160;
+            if (st && Math.abs(x - place(j).cx) < place(j).sx * 0.9 && Math.abs(y - place(j).cy) < place(j).sy * 0.9) return;
+          }
+          ctx.save(); ctx.translate(x, y + Math.sin(t * 0.9 + sh.ph) * 8);
           ctx.rotate(sh.rot + Math.sin(t * 0.7 + sh.ph) * 0.12); ctx.scale(1 + 0.07 * bounce, 1 + 0.07 * bounce);
           cutShape(ctx, sh); ctx.fillStyle = U.css(sh.col); ctx.fill('nonzero');
           ctx.restore();
-        }
+        });
       };
       drawShapes(false);
       if (st) {

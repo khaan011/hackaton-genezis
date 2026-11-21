@@ -457,3 +457,8 @@ html[data-view="day"] #tour { left: auto; right: clamp(16px, 3vw, 32px); margin:
 .results i { font-style: normal; font-size: 12px; color: var(--soft); white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
 .results .pv { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; }
 .src { margin-top: 8px; font-size: 12px; }
+
+/* телефон: уведомление сверху — не закрывает «Собрать», плеер и нижнюю панель */
+@media (max-width: 700px) {
+  #toast, html[data-view="day"] #toast, html[data-view="new"] #toast { top: calc(62px + env(safe-area-inset-top)); bottom: auto; left: 12px; right: 12px; transform: none; max-width: none; font-size: 14px; }
+}

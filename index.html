@@ -477,6 +477,11 @@ html[data-view="day"] #tour { left: auto; right: clamp(16px, 3vw, 32px); margin:
 .results .pv { flex: none; width: 40px; height: 40px; border-radius: 50%; border: 1px solid var(--line); background: var(--card); cursor: pointer; font-size: 13px; }
 .src { margin-top: 8px; font-size: 12px; }
 
+/* телефон: уведомление сверху — не закрывает «Собрать», плеер и нижнюю панель */
+@media (max-width: 700px) {
+  #toast, html[data-view="day"] #toast, html[data-view="new"] #toast { top: calc(62px + env(safe-area-inset-top)); bottom: auto; left: 12px; right: 12px; transform: none; max-width: none; font-size: 14px; }
+}
+
 </style>
 </head>
 <body>
@@ -616,7 +621,7 @@ html[data-view="day"] #tour { left: auto; right: clamp(16px, 3vw, 32px); margin:
           <input id="d-title" class="title-in" maxlength="70" aria-label="Название папки дня">
         </div>
         <div class="meta" id="d-meta"></div>
-        <div class="seg vis" id="d-visual" role="group" aria-label="Из чего собрано видео"><button data-v="scenes">✦ Сцены из текста</button><button data-v="photos">Мои фото</button></div>
+        <div class="seg vis" id="d-visual" role="group" aria-label="Из чего собрано видео"><button data-v="scenes">✦ Сцены</button><button data-v="mix">Вместе</button><button data-v="photos">Мои фото</button></div>
         <div class="reg" id="d-reg"></div>
         <div class="axes" id="d-axes"></div>
         <details class="tune" id="d-tune">
@@ -2261,7 +2266,7 @@ const K = {
     office: ['офис', 'код', 'ноут', 'компьют', 'монитор', 'дедлайн', 'хакатон', 'программ', 'созвон', 'работ'],
     party: ['день рождения', 'праздн', 'вечерин', 'торт', 'шарик', 'концерт', 'клуб', 'танц', 'сюрприз', 'гост'],
     cafe: ['кафе', 'кофейн', 'ресторан', '=бар', 'пиццер'],
-    home: ['=дома', 'квартир', 'комнат', 'кухн', '=окно', '=окна', '=окном', 'окне', 'кроват', 'диван', 'балкон', 'проснул', 'плед'],
+    home: ['=дома', 'квартир', 'комнат', 'кухн', 'кроват', 'диван', 'балкон', 'проснул', 'плед'],
     dacha: ['дач', 'деревн', 'бабушк', 'огород', 'домик', 'яблон', 'забор'],
     water: ['=река', '=реки', '=реке', '=рекой', '=реку', 'речк', '=море', '=моря', '=морем', 'озер', 'пляж', 'берег', 'набережн', 'пруд', 'купал', 'волн'],
     mountain: ['=горы', '=горах', '=гор', 'поход', 'вершин', 'ущель'],
@@ -2296,7 +2301,7 @@ const K = {
     snowman: ['снегович'],
   },
   people: {
-    alone: ['=одна', '=один', '=одной', 'одиноч', '=сам', '=сама', 'никого', 'наедине'],
+    alone: ['=одна', '=один', '=одной', 'одиноч', '=сам', '=сама', 'никого', 'наедине', 'пуст'],
     many: ['друз', 'команд', 'гост', 'компани', 'семь', '=всей', 'ребят', 'толп', 'родител'],
     two: ['вдвоём', 'вдвоем', '=мы', '=нас', 'девушк', '=парнем', '=парень', '=с ним', '=с ней', 'подруг', '=друг', '=другом', '=мама', '=мамой', '=папой', 'обнял', 'поцел'],
   },
@@ -2308,6 +2313,8 @@ const K = {
   },
 };
 const INDOOR = new Set(['office', 'party', 'cafe', 'home']);
+const OBJ_KEYS = new Set(['cup', 'laptop', 'cake', 'balloons', 'fire', 'books', 'flowers', 'guitar', 'music', 'phone']);
+const OBJ_RU_EXTRA = { phone: 'телефон' };
 const PLACE_RU = { office: 'офис', party: 'праздник', cafe: 'кафе', home: 'дом', dacha: 'дача', water: 'вода', mountain: 'горы', forest: 'лес', park: 'парк', road: 'дорога', city: 'город' };
 const OBJ_RU = { cup: 'кружка', laptop: 'ноутбук', cake: 'торт', balloons: 'шарики', fire: 'костёр', guitar: 'гитара', lamps: 'огни', leaves: 'листья', stars: 'звёзды', moon: 'луна', flowers: 'цветы', books: 'книги', music: 'музыка', confetti: 'конфетти', boat: 'лодка', snowman: 'снеговик' };
 const WEATHER_RU = { rain: 'дождь', snow: 'снег', fog: 'туман', sun: 'солнце', wind: 'ветер' };
@@ -2318,14 +2325,36 @@ function best(doc, group) {
   for (const k of Object.keys(group)) { const v = PV.Text.scan(doc, group[k]).score; if (v > bv) { bv = v; bk = k; } }
   return bk;
 }
+/* кто в кадре по фразе: компания и двое — если они рядом; звонок или переписка — человек не рядом;
+   глагол прошедшего времени в единственном числе без «мы» — одна фигура */
+const REMOTE = /(звон|позвон|написал|написала|сообщени|переписк|видеосвяз|созвон)/i;
+function peopleOf(doc, text) {
+  const many = PV.Text.scan(doc, K.people.many).score, two = PV.Text.scan(doc, K.people.two).score, alone = PV.Text.scan(doc, K.people.alone).score;
+  const t = String(text).toLowerCase();
+  if ((many || two) && REMOTE.test(t)) return 'remote';
+  if (many >= two && many > 0) return 'many';
+  if (two > 0 && two >= alone) return 'two';
+  if (alone > 0) return 'alone';
+  const verbs = t.split(/[^а-яё]+/).filter((w) => /(ла|лся|лась)$/.test(w) && w.length > 3 && !/^(была|стала|начала|казалась|оставалась|осталась|пила|мела)$/.test(w));
+  if (!/(^|\s)мы(\s|$)/.test(t) && (/(^|\s)я(\s|$)/.test(t) || verbs.length)) return 'alone';
+  return null;
+}
 function all(doc, group) { return Object.keys(group).filter((k) => PV.Text.scan(doc, group[k]).score > 0); }
 
 /* короткая подпись сцены: 2–7 слов из самой фразы */
+const CUT_BEFORE = /^(и|а|но|потом|затем|когда|пока|чтобы|потому|хотя|ведь|где|который|которая|которые)$/i;
 function shortCap(s) {
-  const words = String(s).replace(/[«»"]/g, '').split(/\s+/).filter(Boolean);
-  let out = words.slice(0, 7).join(' ');
-  if (words.length > 7) out = out.replace(/[,;:—-]+$/, '') + '…';
-  return U.cap(out.replace(/[.!?]+$/, ''));
+  const clean = String(s).replace(/[«»"]/g, '').replace(/[.!?…]+$/, '').trim();
+  const words = clean.split(/\s+/).filter(Boolean);
+  if (words.length <= 12) return U.cap(clean);
+  /* ищем конец мысли: запятая/тире или союз — не раньше 4-го и не позже 12-го слова */
+  let cut = -1;
+  for (let i = 3; i < Math.min(12, words.length); i++) {
+    if (/[,;:—–-]$/.test(words[i])) { cut = i + 1; }
+    else if (CUT_BEFORE.test(words[i + 1] || '') && i >= 4) { cut = i + 1; }
+  }
+  if (cut < 0) cut = 10;
+  return U.cap(words.slice(0, cut).join(' ').replace(/[,;:—–-]+$/, ''));
 }
 
 /* ---------- план сцен по записи ---------- */
@@ -2363,12 +2392,28 @@ function plan(T, S, seed) {
     if (wNow.length) wState = [...new Set([...wState.filter((w) => w === 'snow' || w === 'fog'), ...wNow])];
     const weather = wState.filter((w) => w !== 'sun' || !['evening', 'night'].includes(tod));
     /* люди держатся, пока текст их не сменит */
-    const pNow = best(doc, { alone: K.people.alone, many: K.people.many, two: K.people.two });
-    if (pNow) who = pNow; else if (!who && i === 0) who = gPeople === 'alone' ? null : gPeople;
-    const people = who;
+    const pNow = peopleOf(doc, text);
+    let people;
+    if (pNow === 'remote') { people = 'alone'; objs.unshift('phone'); } /* звонок или переписка: крупно телефон; спутник никуда не делся */
+    else {
+      if (pNow) who = pNow;
+      else if (!who && i === 0) who = gPeople === 'alone' ? null : gPeople;
+      /* «гуляли», «пили» без «я» — нас было несколько */
+      const plural = String(text).toLowerCase().split(/[^а-яё]+/).some((w) => w.length > 4 && /ли$/.test(w) && !/^(были|стали|начали|могли|шли)$/.test(w));
+      if (!pNow && plural && (!who || who === 'alone')) who = gPeople && gPeople !== 'alone' ? gPeople : 'two';
+      people = who;
+    }
     /* фраза только о предмете — крупный план; иначе общий план места */
-    const shot = !p && objs.some((o) => ['cup', 'cake', 'laptop', 'books', 'flowers', 'guitar'].includes(o)) ? 'close' : 'wide';
-    scenes.push({ i, text, caption: shortCap(text), place, tod, weather, objs, people, shot, season: S.season, seed: (seed + i * 977) >>> 0 });
+    let shot = !p && objs.some((o) => ['cup', 'cake', 'laptop', 'books', 'flowers', 'guitar', 'phone'].includes(o)) ? 'close' : 'wide';
+    const prev = scenes[scenes.length - 1];
+    if (prev && prev.place === place && prev.shot === shot) {
+      /* то же место второй раз подряд: крупный план предмета, вид из окна или другой ракурс */
+      if (shot === 'wide' && objs.some((o) => OBJ_KEYS.has(o))) shot = 'close';
+      else if (shot === 'wide' && INDOOR.has(place)) shot = 'window';
+      else shot = shot === 'close' ? 'wide' : 'wide';
+    }
+    const flip = prev && prev.place === place && !prev.flip;
+    scenes.push({ flip, i, text, caption: shortCap(text), place, tod, weather, objs, people, shot, season: S.season, seed: (seed + i * 977) >>> 0 });
   });
   /* меньше трёх сцен — добавляем крупный план детали и общий план */
   if (scenes.length < 3) {
@@ -2382,9 +2427,10 @@ function plan(T, S, seed) {
 function describe(sc) {
   const bits = [PLACE_RU[sc.place] || sc.place];
   sc.weather.forEach((w) => bits.push(WEATHER_RU[w]));
-  sc.objs.forEach((o) => bits.push(OBJ_RU[o]));
+  sc.objs.forEach((o) => bits.push(OBJ_RU[o] || OBJ_RU_EXTRA[o]));
   if (sc.people) bits.push(PEOPLE_RU[sc.people]);
   if (sc.shot === 'close') bits.push('крупный план');
+  if (sc.shot === 'window') bits.push('вид из окна');
   return [...new Set(bits)].filter(Boolean).join(', ');
 }
 
@@ -2528,7 +2574,17 @@ function headphones(ctx, x, y, s, P) {
   ctx.strokeStyle = css(P.ink); ctx.lineWidth = s * 0.1; ctx.beginPath(); ctx.arc(x, y, s * 0.5, Math.PI, 0); ctx.stroke();
   ctx.fillStyle = css(P.sat); ctx.fillRect(x - s * 0.62, y - s * 0.05, s * 0.24, s * 0.4); ctx.fillRect(x + s * 0.38, y - s * 0.05, s * 0.24, s * 0.4);
 }
-const OBJ_DRAW = { cup, laptop, cake, balloons, fire, books, flowers, guitar, music: headphones };
+function phone(ctx, x, y, s, P) {
+  glow(ctx, x, y - s * 1.1, s * 2.2, [170, 210, 255], 0.35);
+  ctx.save(); ctx.translate(x, y - s); ctx.rotate(-0.12);
+  ctx.fillStyle = css([24, 24, 30]); ctx.beginPath(); ctx.roundRect ? ctx.roundRect(-s * 0.5, -s, s, s * 2, s * 0.14) : ctx.rect(-s * 0.5, -s, s, s * 2); ctx.fill();
+  ctx.fillStyle = css([190, 220, 255]); ctx.fillRect(-s * 0.42, -s * 0.86, s * 0.84, s * 1.66);
+  ctx.fillStyle = css(P.sat); ctx.beginPath(); ctx.arc(0, -s * 0.35, s * 0.18, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = css([60, 190, 110]); ctx.beginPath(); ctx.arc(-s * 0.2, s * 0.5, s * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.fillStyle = css([230, 70, 70]); ctx.beginPath(); ctx.arc(s * 0.2, s * 0.5, s * 0.1, 0, Math.PI * 2); ctx.fill();
+  ctx.restore();
+}
+const OBJ_DRAW = { cup, laptop, cake, balloons, fire, books, flowers, guitar, music: headphones, phone };
 
 /* ---------- погода поверх ---------- */
 function weather(ctx, sc, P, rnd, indoor) {
@@ -2593,6 +2649,48 @@ function outdoor(ctx, sc, P, rnd) {
 }
 
 /* ---------- сцена в помещении ---------- */
+function cafeScene(ctx, sc, P, rnd) {
+  const night = P.night || P.eve;
+  const wall = mix([120, 74, 52], P.sat, 0.25), wallC = night ? mix(wall, [24, 18, 22], 0.5) : wall;
+  ctx.fillStyle = grad(ctx, 0, 0, 0, SH, [[0, wallC], [1, mix(wallC, [0, 0, 0], 0.35)]]); ctx.fillRect(0, 0, SW, SH);
+  /* витрина с улицей */
+  const wx = SW * 0.08, wy = SH * 0.1, ww = SW * 0.84, wh = SH * 0.34;
+  ctx.save(); ctx.beginPath(); ctx.rect(wx, wy, ww, wh); ctx.clip(); ctx.translate(wx, wy); ctx.scale(ww / SW, wh / (SH * 0.62));
+  outdoor(ctx, { ...sc, place: 'city', people: null, objs: sc.objs.filter((o) => ['lamps', 'moon', 'stars'].includes(o)) }, P, rnd);
+  ctx.scale(SW / ww, SH * 0.62 / wh); weather(ctx, sc, P, rnd, false); ctx.restore();
+  ctx.strokeStyle = css([40, 28, 22]); ctx.lineWidth = 14; ctx.strokeRect(wx, wy, ww, wh);
+  for (let i = 1; i < 3; i++) { ctx.beginPath(); ctx.moveTo(wx + ww * i / 3, wy); ctx.lineTo(wx + ww * i / 3, wy + wh); ctx.stroke(); }
+  /* подвесные лампы */
+  for (let i = 0; i < 4; i++) {
+    const x = SW * (0.16 + i * 0.23), y = SH * (0.5 + (i % 2) * 0.03);
+    ctx.strokeStyle = css([30, 24, 20]); ctx.lineWidth = 3; ctx.beginPath(); ctx.moveTo(x, 0); ctx.lineTo(x, y - 20); ctx.stroke();
+    ctx.fillStyle = css([40, 34, 30]); ctx.beginPath(); ctx.moveTo(x - 30, y); ctx.lineTo(x + 30, y); ctx.lineTo(x + 14, y - 24); ctx.lineTo(x - 14, y - 24); ctx.fill();
+    glow(ctx, x, y + 10, 190, P.warm, night ? 0.5 : 0.32);
+  }
+  /* стойка */
+  ctx.fillStyle = css(mix([86, 56, 40], P.dark, 0.2)); ctx.fillRect(0, SH * 0.62, SW * 0.42, SH * 0.1);
+  ctx.fillStyle = css([210, 200, 190], 0.8); for (let i = 0; i < 5; i++) ctx.fillRect(SW * 0.03 + i * 60, SH * 0.6, 30, 22);
+  /* столики */
+  [[0.62, 0.84], [0.26, 0.9]].forEach(([fx, fy], k) => {
+    const x = SW * fx, y = SH * fy;
+    ctx.fillStyle = css([60, 42, 32]); ctx.beginPath(); ctx.ellipse(x, y - 60, 130, 26, 0, 0, Math.PI * 2); ctx.fill(); ctx.fillRect(x - 8, y - 60, 16, 70);
+    if (k === 0) { people(ctx, sc.people || 'alone', x - 30, y + 20, 230, P, rnd, night); cup(ctx, x + 60, y - 70, 50, P, rnd); }
+    else { person(ctx, x - 70, y + 10, 200, mix(P.ink, P.dark, 0.5), rnd); cup(ctx, x + 20, y - 70, 40, P, rnd); }
+  });
+}
+function windowScene(ctx, sc, P, rnd) {
+  /* вид из окна крупно: погода и время суток на весь кадр, силуэт у подоконника */
+  ctx.save(); ctx.scale(1, 1 / 0.62);
+  outdoor(ctx, { ...sc, place: sc.place === 'office' ? 'city' : sc.season === 'winter' ? 'city' : 'park', people: null, objs: sc.objs.filter((o) => ['stars', 'moon', 'lamps', 'leaves'].includes(o)) }, P, rnd);
+  ctx.restore(); weather(ctx, sc, P, rnd, false);
+  const fr = mix([230, 220, 205], P.light, 0.2);
+  ctx.strokeStyle = css(fr); ctx.lineWidth = 40; ctx.strokeRect(20, 20, SW - 40, SH * 0.78);
+  ctx.lineWidth = 16; ctx.beginPath(); ctx.moveTo(SW / 2, 20); ctx.lineTo(SW / 2, SH * 0.78 + 20); ctx.stroke();
+  ctx.fillStyle = css(mix(fr, P.dark, 0.25)); ctx.fillRect(0, SH * 0.78, SW, SH);
+  if (sc.people) person(ctx, SW * 0.24, SH * 1.02, 420, mix(P.ink, [10, 10, 16], 0.4), rnd, 0.02);
+  const o = sc.objs.find((x) => ['cup', 'books', 'flowers'].includes(x));
+  if (o) OBJ_DRAW[o](ctx, SW * 0.72, SH * 0.8, 80, P, rnd);
+}
 function indoorScene(ctx, sc, P, rnd) {
   const night = P.night || P.eve;
   const wall = sc.place === 'office' ? mix([70, 78, 96], P.dark, 0.2) : sc.place === 'party' ? mix(P.sat, [250, 220, 200], 0.55) : mix([230, 214, 192], P.light, 0.3);
@@ -2634,7 +2732,10 @@ function closeup(ctx, sc, P, rnd) {
 function paint(sc, S) {
   const c = PV.Img.makeCanvas(SW, SH), ctx = c.getContext('2d');
   const rnd = U.rng(sc.seed), P = palette(sc, S);
+  if (sc.flip) { ctx.translate(SW, 0); ctx.scale(-1, 1); }
   if (sc.shot === 'close') closeup(ctx, sc, P, rnd);
+  else if (sc.shot === 'window') windowScene(ctx, sc, P, rnd);
+  else if (sc.place === 'cafe') cafeScene(ctx, sc, P, rnd);
   else if (INDOOR.has(sc.place)) indoorScene(ctx, sc, P, rnd);
   else { outdoor(ctx, sc, P, rnd); weather(ctx, sc, P, rnd, false); }
   /* мягкая виньетка */
@@ -2894,6 +2995,11 @@ class Renderer {
     let k = n;
     while (len(k, shot) > 45 && shot / 2 >= 1.5) shot /= 2;
     while (len(k, shot) > 45 && k > 1) k--;
+    if (this.day.captions) {
+      /* подпись из 5–10 слов читается за 3–4 с: удваиваем длину кадра, сохраняя попадание в доли */
+      while (shot < 3.4) shot *= 2;
+      while (len(k, shot) > 48 && k > 3) k--;
+    }
     let total = k;
     while (len(total, shot) < 16) total++;
     this.shotSec = shot;
@@ -3762,8 +3868,11 @@ PV.Regs.matisse = (R) => {
   const cols = [...pal.slice(0, 4), [250, 247, 240], [22, 22, 26]].filter((c) => U.dist(c, S.bg || [0, 0, 0]) > 60);
   let shapes = [];
   const blobs = [];
+  const story = !!R.day.captions;
   const place = (j) => {
     const r = shotRnd(R, j, 11), left = j % 2 === 0;
+    /* сцены из текста — главное в кадре: около 60% площади вместо трети */
+    if (story) return { cx: W / 2 + (left ? -1 : 1) * (20 + r() * 30), cy: LAY.TOP + 560 + r() * 60, sx: 440 + r() * 20, sy: 540 + r() * 30, rot: (r() - 0.5) * 0.08, prevCorner: left ? 1 : -1 };
     return { cx: W / 2 + (left ? -1 : 1) * (60 + r() * 60), cy: LAY.TOP + 520 + r() * 160, sx: 330 + r() * 40, sy: 380 + r() * 50, rot: (r() - 0.5) * 0.12, prevCorner: left ? 1 : -1 };
   };
   const drawBlob = (ctx, pi, variant, pts, cx, cy, sx, sy, rot, sc, a) => {
@@ -3781,7 +3890,7 @@ PV.Regs.matisse = (R) => {
   };
   return {
     async prepPhoto(i) {
-      const ph = R.photos[i], s = R.scale, w = Math.round(760 * s), h = Math.round(w / (ph.a.aspect || 1));
+      const ph = R.photos[i], s = R.scale, w = Math.round((story ? 960 : 760) * s), h = Math.round(w / (ph.a.aspect || 1));
       blobs[i] = blobPts(U.rng(S.seed + i * 17));
       return grade(ph.bmp, w, h, S, { sat: Math.max(1.15, S.sat * 1.2), contrast: 1.06, draw: (ctx, cw, ch) => ctx.drawImage(ph.bmp, 0, 0, cw, ch) });
     },
@@ -3789,7 +3898,7 @@ PV.Regs.matisse = (R) => {
       const r = U.rng(S.seed ^ 0x77);
       const spots = [[150, 340], [930, 320], [120, 1000], [960, 900], [210, 1330], [880, 1340], [540, 280], [560, 1300], [80, 660], [1000, 640]];
       shapes = spots.map(([x, y], i) => ({
-        x: x + (r() - 0.5) * 80, y: y + (r() - 0.5) * 80, type: r.pick(['algae', 'algae', 'star', 'circle', 'leaf']), size: 120 + r() * 170,
+        x: x + (r() - 0.5) * 80, y: y + (r() - 0.5) * 80, type: r.pick(['algae', 'algae', 'star', 'circle', 'leaf']), size: story ? 80 + r() * 90 : 120 + r() * 170,
         lobes: 6 + Math.floor(r() * 5), points: 5 + Math.floor(r() * 4), rot: r() * 6.28, ph: r() * 6.28, col: cols[i % cols.length], front: r() < 0.3,
       }));
     },
@@ -3797,14 +3906,22 @@ PV.Regs.matisse = (R) => {
     shots(ctx, t) {
       const st = state(R, t);
       const bounce = R.pulse(t, 5) * (0.4 + S.pulse);
+      const j = st ? st.shot.j : 0;
       const drawShapes = (front) => {
-        for (const sh of shapes) {
-          if (sh.front !== front) continue;
-          ctx.save(); ctx.translate(sh.x, sh.y + Math.sin(t * 0.9 + sh.ph) * 8);
+        shapes.forEach((sh, i) => {
+          if (sh.front !== front) return;
+          /* в сценах из текста: в каждом кадре свой поднабор фигур и свои места, ничего не лежит поверх сцены */
+          let x = sh.x, y = sh.y;
+          if (story) {
+            if ((i + j) % 2 === 1) return;
+            const r = shotRnd(R, j * 31 + i, 5); x += (r() - 0.5) * 180; y += (r() - 0.5) * 160;
+            if (st && Math.abs(x - place(j).cx) < place(j).sx * 0.9 && Math.abs(y - place(j).cy) < place(j).sy * 0.9) return;
+          }
+          ctx.save(); ctx.translate(x, y + Math.sin(t * 0.9 + sh.ph) * 8);
           ctx.rotate(sh.rot + Math.sin(t * 0.7 + sh.ph) * 0.12); ctx.scale(1 + 0.07 * bounce, 1 + 0.07 * bounce);
           cutShape(ctx, sh); ctx.fillStyle = U.css(sh.col); ctx.fill('nonzero');
           ctx.restore();
-        }
+        });
       };
       drawShapes(false);
       if (st) {
@@ -4361,6 +4478,7 @@ const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t 
 function go(view) {
   if (state.view === 'day' && view !== 'day') stopDay();
   state.view = view;
+  $('#toast').hidden = true; clearTimeout(toastT);
   document.documentElement.dataset.view = view;
   for (const v of ['archive', 'new', 'day', 'about']) $('#v-' + v).hidden = v !== view;
   $$('.nav, .tab').forEach((b) => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === view));
@@ -4483,11 +4601,24 @@ async function deezer(q) {
 }
 /* на iPhone Apple перенаправляет поиск в приложение «Музыка», поэтому там первым идёт Deezer */
 const IOS = /iPhone|iPad|iPod/.test(navigator.userAgent) || (navigator.platform === 'MacIntel' && navigator.maxTouchPoints > 1);
+const norm = (x) => String(x || '').toLowerCase().replace(/ё/g, 'е').replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+function rankSongs(q, items) {
+  const nq = norm(q), qw = nq.split(' ').filter((w) => w.length > 1);
+  const score = (x) => {
+    const a = norm(x.artistName), t = norm(x.trackName);
+    let s = 0;
+    if (a && (nq.includes(a) || a.includes(nq))) s += 4;
+    qw.forEach((w) => { if (a.split(' ').includes(w)) s += 1.2; if (t.split(' ').includes(w)) s += 0.8; });
+    if (t === nq && a !== nq) s -= 1; /* трек, названный именем артиста, — не сам артист */
+    return s;
+  };
+  return items.map((x, i) => ({ x, i, s: score(x) })).sort((a, b) => b.s - a.s || a.i - b.i).map((o) => o.x);
+}
 async function findSongs(q) {
   const order = IOS ? [() => deezer(q), () => itunes(q, 'KZ')] : [() => itunes(q, 'KZ'), () => deezer(q), () => itunes(q, 'US')];
   let lastErr = null;
   for (const f of order) {
-    try { const r = await f(); if (r.length) return r; } catch (e) { lastErr = e; }
+    try { const r = await f(); if (r.length) return rankSongs(q, r); } catch (e) { lastErr = e; }
   }
   if (lastErr) throw lastErr;
   return [];
@@ -4816,13 +4947,22 @@ function scenesFor(day, S) {
     return { sc, photo: { bmp: c, a: PV.Img.analyzePhoto(c, sc.seed) } };
   });
 }
+const visualOf = (day) => day.visual || ((day.photos || []).length >= 3 ? 'mix' : 'scenes');
 async function makeRenderer(day, S, scale, quality, onProgress) {
   let photos, captions = null;
-  if (day.visual === 'photos') {
+  const vis = visualOf(day);
+  if (vis === 'photos') {
     const bmps = await Promise.all(day.photos.map((p) => PV.Img.loadBitmap(p.blob)));
     photos = bmps.map((b, i) => ({ bmp: b, a: day.photos[i].a }));
   } else {
     const sc = scenesFor(day, S);
+    if (vis === 'mix' && day.photos.length) {
+      /* ваши снимки встают в каждую вторую сцену, подпись остаётся от фразы */
+      const bmps = await Promise.all(day.photos.map((p) => PV.Img.loadBitmap(p.blob)));
+      let k = 0;
+      for (let i = 1; i < sc.length && k < bmps.length; i += 2, k++) { sc[i].photo = { bmp: bmps[k], a: day.photos[k].a }; sc[i].sc = { ...sc[i].sc, own: true }; }
+      if (sc.length < 2) sc.push({ sc: { ...sc[0].sc, caption: null, own: true }, photo: { bmp: bmps[0], a: day.photos[0].a } });
+    }
     photos = sc.map((x) => x.photo);
     captions = sc.map((x) => x.sc.caption);
     state.scenes = sc.map((x) => x.sc);
@@ -4868,7 +5008,7 @@ async function openDay(day, opts = {}) {
   state.player.seek(Math.max(2.4, R.shots[0].start + Math.min(R.shots[0].dur * 0.7, 3.2)));
   fillPanel(day, S);
   dayPos();
-  $$('#d-visual button').forEach((b) => b.classList.toggle('on', b.dataset.v === (day.visual || 'scenes')));
+  $$('#d-visual button').forEach((b) => b.classList.toggle('on', b.dataset.v === visualOf(day)));
 }
 function setPlaying(on) {
   $('#d-play').textContent = on ? '❚❚' : '▶';
@@ -4895,8 +5035,8 @@ function fillPanel(day, S) {
   $('#d-tune-rows').innerHTML = AX.slice(0, 4).map(([k, name]) => `<div class="tune-row"><span>${name}</span><input type="range" min="0" max="100" value="${Math.round(S.mood[k] * 100)}" data-k="${k}"><span class="muted" data-v="${k}">${day.overrides[k] != null ? 'вручную' : 'авто'}</span></div>`).join('');
   $$('#d-tune-rows input').forEach((inp) => { inp.oninput = () => { $(`[data-v="${inp.dataset.k}"]`).textContent = 'вручную'; retune(); }; });
   const lines = PV.Mood.explain({ text: day.analysis.T, photos: day.analysis.P, music: day.analysis.M }, S);
-  if (day.visual !== 'photos' && state.scenes && state.scenes.length) {
-    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${PV.Scene.describe(sc)}`).join('; ') + '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.' });
+  if (visualOf(day) !== 'photos' && state.scenes && state.scenes.length) {
+    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${sc.own ? 'ваше фото' : PV.Scene.describe(sc)}`).join('; ') + (visualOf(day) === 'mix' ? '. Ваши снимки чередуются со сценами, дорисованными по словам записи; палитра и свет — из снимков.' : '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.') });
   }
   lines.push({ k: 'Название', t: `${day.titlePattern || 'по правилам'} — 3–7 слов, как подпись на обороте фотографии, без глаголов и эмоций «в лоб».` });
   $('#d-why').innerHTML = lines.map((l) => `<li><b>${esc(l.k)}</b>${esc(l.t)}</li>`).join('');
@@ -4912,14 +5052,15 @@ function fillPanel(day, S) {
 function folderFiles(day, S) {
   const base = U.safeName(day.title), files = [];
   const lines = PV.Mood.explain({ text: day.analysis.T, photos: day.analysis.P, music: day.analysis.M }, S);
-  if (day.visual !== 'photos' && state.scenes && state.scenes.length) {
-    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${PV.Scene.describe(sc)}`).join('; ') + '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.' });
+  if (visualOf(day) !== 'photos' && state.scenes && state.scenes.length) {
+    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${sc.own ? 'ваше фото' : PV.Scene.describe(sc)}`).join('; ') + (visualOf(day) === 'mix' ? '. Ваши снимки чередуются со сценами, дорисованными по словам записи; палитра и свет — из снимков.' : '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.') });
   }
   files.push({ name: 'запись.txt', data: `${U.dateLong(day.date)}, ${U.weekday(day.date)}\n\n${day.text}\n` });
   day.photos.forEach((p, i) => files.push({ name: `фото-${String(i + 1).padStart(2, '0')}.jpg`, data: p.blob }));
-  if (day.song.excerpt) files.push({ name: `песня-фрагмент.${day.song.excerptExt}`, data: day.song.excerpt });
+  const streamed = !!day.song.service; /* превью сервисов разрешено только слушать, не раздавать файлом */
+  if (day.song.excerpt && !streamed) files.push({ name: `песня-фрагмент.${day.song.excerptExt}`, data: day.song.excerpt });
   const M = day.analysis.M;
-  files.push({ name: 'песня.txt', data: [`Песня: ${day.song.label}`, day.song.url ? `Ссылка: ${day.song.url}` : '', day.song.excerpt ? `Фрагмент: с ${U.fmtTime(day.song.excerptStart)}, ${Math.round(day.song.excerptDur)} с (песня целиком не хранится)` : '', `Темп: ${Math.round(M.bpm)} BPM${M.keyName ? ', ' + M.keyName : ''}${M.source === 'described' ? ' (по описанию)' : ''}`].filter(Boolean).join('\n') + '\n' });
+  files.push({ name: 'песня.txt', data: [`Песня: ${day.song.label}`, day.song.url ? `Ссылка: ${day.song.url}` : '', day.song.excerpt ? (streamed ? `Фрагмент из ${day.song.service} в папку не кладём: сервис разрешает только слушать превью. Послушать — по ссылке выше.` : `Фрагмент: с ${U.fmtTime(day.song.excerptStart)}, ${Math.round(day.song.excerptDur)} с (песня целиком не хранится)`) : '', `Темп: ${Math.round(M.bpm)} BPM${M.keyName ? ', ' + M.keyName : ''}${M.source === 'described' ? ' (по описанию)' : ''}`].filter(Boolean).join('\n') + '\n' });
   if (day.video) files.push({ name: `воспоминание.${day.video.ext}`, data: day.video.blob });
   if (day.cover) files.push({ name: 'обложка.jpg', data: day.cover });
   if (day.voice) files.push({ name: `озвучка.${day.voice.ext || 'webm'}`, data: day.voice.blob });
@@ -5349,9 +5490,9 @@ async function init() {
   if (PV.Store.mode === 'memory') toast('Браузер не даёт хранить дневник: дни будут жить до закрытия вкладки. Чтобы сохранить, используйте «Экспорт дневника».', 9000);
   bindTilt(); bindTour(); bindMobile();
   $$('#d-visual button').forEach((b) => { b.onclick = async () => {
-    const day = state.day; if (!day || (day.visual || 'scenes') === b.dataset.v) return;
+    const day = state.day; if (!day || visualOf(day) === b.dataset.v) return;
     day.visual = b.dataset.v; day.video = null;
-    busy(true, b.dataset.v === 'photos' ? 'Собираю из ваших фото…' : 'Дорисовываю сцены по записи…', 0.2);
+    busy(true, b.dataset.v === 'photos' ? 'Собираю из ваших фото…' : b.dataset.v === 'mix' ? 'Чередую ваши фото и сцены…' : 'Дорисовываю сцены по записи…', 0.2);
     try { await openDay(day, { fresh: true, onProgress: (p) => busy(true, null, 0.2 + 0.75 * p) }); } finally { busy(false); }
   }; });
   go('archive');

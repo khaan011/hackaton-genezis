@@ -143,6 +143,11 @@ class Renderer {
     let k = n;
     while (len(k, shot) > 45 && shot / 2 >= 1.5) shot /= 2;
     while (len(k, shot) > 45 && k > 1) k--;
+    if (this.day.captions) {
+      /* подпись из 5–10 слов читается за 3–4 с: удваиваем длину кадра, сохраняя попадание в доли */
+      while (shot < 3.4) shot *= 2;
+      while (len(k, shot) > 48 && k > 3) k--;
+    }
     let total = k;
     while (len(total, shot) < 16) total++;
     this.shotSec = shot;
