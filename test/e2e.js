@@ -7,19 +7,21 @@ const OUT = path.join(__dirname, 'out');
 fs.mkdirSync(OUT, { recursive: true });
 
 const DAYS = [
-  { key: 'monet', date: '2026-10-18', text: 'Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао из термоса и долго разговаривали на скамейке.', photos: ['autumn_park', 'autumn_leaves', 'cocoa'], song: 'ballad_C_major_72', artist: 'Тестовый синтез', title: 'Баллада в до мажоре' },
-  { key: 'kandinsky', date: '2026-11-12', text: 'Срочная сдача проекта. Ночь в офисе, в наушниках электронная музыка, кофе остыл, код не собирается. Дедлайн в шесть утра.', photos: ['office_window', 'laptop_night'], song: 'techno_A_minor_128', artist: 'Тестовый синтез', title: 'Техно в ля миноре' },
-  { key: 'ma', date: '2026-01-14', text: 'Проснулась рано, одна. За окном снег и туман, тишина. Долго смотрела, как медленно падает снег, и ничего не делала.', photos: ['winter_field', 'frost_window'], song: 'ambient_D_minor_60', artist: 'Тестовый синтез', title: 'Эмбиент в ре миноре' },
+  { key: 'monet', date: '2026-10-18', text: 'Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао из термоса и долго разговаривали на скамейке.', photos: ['autumn_park', 'autumn_leaves', 'cocoa'], song: 'ballad_C_major_72', artist: 'Тестовый синтез', title: 'Какао на скамейке' },
+  { key: 'kandinsky', date: '2026-11-12', text: 'Срочная сдача проекта. Ночь в офисе, в наушниках электронная музыка, кофе остыл, код не собирается. Дедлайн в шесть утра.', photos: ['office_window', 'laptop_night'], song: 'techno_A_minor_128', artist: 'Тестовый синтез', title: 'Ночной билд' },
+  { key: 'ma', date: '2026-01-14', text: 'Проснулась рано, одна. За окном снег и туман, тишина. Долго смотрела, как медленно падает снег, и ничего не делала.', photos: ['winter_field', 'frost_window'], song: 'ambient_D_minor_60', artist: 'Тестовый синтез', title: 'Снег за окном' },
   { key: 'film', date: '2026-07-18', text: 'Поехали с друзьями на дачу, как в детстве. Купались в реке, жгли костёр до темноты, слушали старые песни на кассетах. Вспомнили школу и смеялись.', photos: ['dacha_house', 'river_sunset', 'campfire'], song: 'folk_G_major_96', artist: 'Тестовый синтез', title: 'Летняя песня', year: '1978' },
-  { key: 'matisse', date: '2026-05-03', text: 'День рождения подруги! Шарики, торт со свечами, все смеялись и танцевали до ночи, было очень весело и шумно.', photos: ['balloons', 'cake', 'party'], song: 'pop_D_major_120', artist: 'Тестовый синтез', title: 'Поп в ре мажоре' },
-  { key: 'nocturne', date: '2026-09-28', text: 'Долгий тяжёлый день. Вечером шёл дождь, я шла домой одна, фонари расплывались в лужах. Было грустно, но спокойно.', photos: ['rain_street', 'rain_window'], song: 'rain_E_minor_66', artist: 'Тестовый синтез', title: 'Дождь в ми миноре' },
+  { key: 'matisse', date: '2026-05-03', text: 'День рождения подруги! Шарики, торт со свечами, все смеялись и танцевали до ночи, было очень весело и шумно.', photos: ['balloons', 'cake', 'party'], song: 'pop_D_major_120', artist: 'Тестовый синтез', title: 'Шарики и свечи' },
+  { key: 'nocturne', date: '2026-09-28', text: 'Долгий тяжёлый день. Вечером шёл дождь, я шла домой одна, фонари расплывались в лужах. Было грустно, но спокойно.', photos: ['rain_street', 'rain_window'], song: 'rain_E_minor_66', artist: 'Тестовый синтез', title: 'Фонари в лужах' },
 ];
 
 (async () => {
   const only = process.argv[2] ? process.argv[2].split(',') : null;
   if (process.env.FRESH) fs.rmSync(require('path').join(require('os').tmpdir(), 'pv-profile'), { recursive: true, force: true });
-  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile'), { viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
+  const browser = await chromium.launchPersistentContext(require('path').join(require('os').tmpdir(), 'pv-profile'), { viewport: { width: 1440, height: 1000 }, deviceScaleFactor: 1, acceptDownloads: true, args: ['--autoplay-policy=no-user-gesture-required', '--use-fake-ui-for-media-stream'] });
   const page = browser.pages()[0] || await browser.newPage();
+  /* DEMO_EXPORT=путь.zip: собрать дни с нуля (без автозагрузки демо) и сохранить дневник — так пересобирается demo/diary.zip */
+  if (process.env.DEMO_EXPORT) await page.route('**/demo/diary.zip', (r) => r.fulfill({ status: 404, body: '' }));
   const errors = [];
   page.on('pageerror', (e) => errors.push('pageerror: ' + e.message));
   page.on('console', (m) => { if (m.type() === 'error' || m.type() === 'warning') errors.push(m.type() + ': ' + m.text()); });
@@ -66,6 +68,13 @@ const DAYS = [
   await page.waitForTimeout(400);
   await page.screenshot({ path: path.join(OUT, 'feed.png') });
   fs.writeFileSync(path.join(OUT, 'report.json'), JSON.stringify({ report, errors }, null, 2));
+  if (process.env.DEMO_EXPORT) {
+    await page.evaluate(async () => { for (const d of await PV.Store.all()) { d.demo = true; await PV.Store.put(d); } });
+    const dl = page.waitForEvent('download');
+    await page.click('#btn-export');
+    await (await dl).saveAs(process.env.DEMO_EXPORT);
+    console.log('дневник сохранён:', process.env.DEMO_EXPORT);
+  }
   for (const r of report) console.log(`${r.key}: «${r.title}» → ${r.reg}, ${r.dur.toFixed(1)} с, ${r.shots} кадров по ${r.shotSec.toFixed(2)} с, ${r.ms} мс | ${r.audioInfo}`);
   console.log('ошибки:', errors.length ? errors.join('\n') : 'нет');
   await browser.close();

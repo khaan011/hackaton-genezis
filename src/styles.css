@@ -4,7 +4,7 @@
   --serif: "PV Serif", Georgia, "Times New Roman", serif; --sans: "PV Sans", system-ui, -apple-system, "Segoe UI", sans-serif; --mono: "PV Mono", ui-monospace, Menlo, monospace;
 }
 * { box-sizing: border-box; }
-html, body { margin: 0; background: var(--paper); color: var(--ink); }
+html, body { margin: 0; background: var(--paper); color: var(--ink); overflow-x: clip; }
 body { font: 15px/1.55 var(--sans); -webkit-font-smoothing: antialiased; min-height: 100vh; }
 body::before { content: ""; position: fixed; inset: 0; pointer-events: none; opacity: .5; z-index: 0;
   background-image: radial-gradient(rgba(90,70,50,.05) 1px, transparent 1px); background-size: 3px 3px; }
@@ -294,3 +294,28 @@ html.has-glow .frame { box-shadow: 0 34px 70px -30px rgb(var(--g3) / .75), 0 0 0
   *, *::before, *::after { animation-duration: .01ms !important; animation-iteration-count: 1 !important; transition-duration: .01ms !important; }
   .glow i { animation: none; }
 }
+
+/* ---------- экскурсия и пример ---------- */
+.hello { display: flex; align-items: center; gap: 18px; justify-content: space-between; flex-wrap: wrap; margin: -6px 0 22px; padding: 16px 18px;
+  border-radius: var(--radius); background: rgba(255, 253, 249, .72); border: 1px solid var(--line); backdrop-filter: blur(8px); font-size: 15px; }
+.hello b { font: 500 18px var(--serif); margin-right: 6px; }
+.hello > div { flex: 1 1 320px; }
+.new-head { display: flex; align-items: center; justify-content: space-between; gap: 14px; flex-wrap: wrap; }
+#tour { position: fixed; left: 0; right: 0; margin: 0 auto; bottom: calc(22px + env(safe-area-inset-bottom)); z-index: 70; width: min(560px, calc(100vw - 32px)); animation: rise .35s ease both; }
+.tour-card { background: rgba(30, 27, 24, .94); color: var(--paper); border-radius: 18px; padding: 16px 18px 14px; box-shadow: 0 24px 50px -20px rgba(0,0,0,.6); backdrop-filter: blur(8px); }
+.tour-top { display: flex; justify-content: space-between; font: 11px var(--mono); letter-spacing: .1em; text-transform: uppercase; color: rgba(243,239,231,.6); }
+.tour-k::before { content: "● "; color: rgb(var(--g1)); }
+#tour-text { font: 18px/1.4 var(--serif); margin: 8px 0 12px; min-height: 2.8em; }
+.tour-track { height: 3px; border-radius: 99px; background: rgba(243,239,231,.15); overflow: hidden; }
+.tour-track i { display: block; height: 100%; background: rgb(var(--g1)); transform-origin: left; }
+@keyframes tourbar { from { transform: scaleX(0); } to { transform: scaleX(1); } }
+.tour-act { display: flex; justify-content: flex-end; gap: 8px; margin-top: 12px; }
+.tour-act .ghost { color: var(--paper); border-color: rgba(243,239,231,.25); }
+.spot { position: relative; z-index: 2; border-radius: 14px; box-shadow: 0 0 0 3px rgb(var(--tint) / .9), 0 0 0 10px rgb(var(--tint) / .16) !important; transition: box-shadow .3s; }
+html.touring main { padding-bottom: 220px; }
+
+/* на странице дня уведомление уходит наверх и не закрывает кнопки под кадром */
+html[data-view="day"] #toast { top: 84px; bottom: auto; left: auto; right: clamp(16px, 3vw, 32px); transform: none; }
+.want { border-color: rgba(169, 68, 43, .65) !important; box-shadow: 0 0 0 3px rgba(169, 68, 43, .1); }
+html[data-view="day"] #tour { left: auto; right: clamp(16px, 3vw, 32px); margin: 0; }
+@media (max-width: 900px) { html[data-view="day"] #tour { left: 0; right: 0; margin: 0 auto; } }

@@ -17,6 +17,7 @@ function readWav(file) {
 }
 
 const dir = path.join(__dirname, 'assets/music');
+let keysRight = 0;
 if (!fs.existsSync(dir)) { console.log('Нет test/assets/music — сначала: cd test && python3 gen_music.py'); process.exit(0); }
 for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.wav')).sort()) {
   const { chs, sr } = readWav(path.join(dir, f));
@@ -28,7 +29,12 @@ for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.wav')).sort()) {
   console.log(`${f.padEnd(26)} bpm=${A.bpm} (conf ${A.bpmConf}) ${A.keyName} (mode conf ${A.modeConf}) loud=${A.loud} onsetN=${A.onsetN} bright=${A.brightness} dyn=${A.dynamics}dB start=${A.start.toFixed(2)} beats=${ex.beats.length} env=${ex.env.length} [${ms} ms]`);
   check(Math.abs(A.bpm - want) <= 2, `темп ${want} ±2 BPM`);
   check(A.modeConf >= 0 && A.modeConf <= 1, 'уверенность лада в [0, 1]');
+  const [, note, mode] = f.match(/_([A-G])_(major|minor)_/);
+  const right = A.keyName === PV.Audio.NOTE_RU[{ C: 0, D: 2, E: 4, F: 5, G: 7, A: 9, B: 11 }[note]] + (mode === 'major' ? ' мажор' : ' минор');
+  keysRight += right ? 1 : 0;
+  if (A.modeConf >= 0.5) check(right, `уверенный лад верен (${A.keyName})`);
 }
+check(keysRight >= 4, `лад верен хотя бы в 4 песнях из 6 (${keysRight})`);
 
 // срез MP3
 const mp3 = fs.readFileSync(path.join(dir, 'ballad_C_major_72.mp3'));

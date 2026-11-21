@@ -170,7 +170,7 @@ function chroma(x, sr, a, b) {
   const i0 = Math.max(0, Math.floor(a * sr)), i1 = Math.min(x.length - N, Math.floor(b * sr));
   /* средние частоты (мелодия, аккорды) и бас отдельно: бас подсказывает тонику */
   const mid = new Float64Array(12), bass = new Float64Array(12), binHz = sr / N;
-  const kLo = Math.ceil(80 / binHz), kSplit = Math.floor(220 / binHz), kHi = Math.min(N / 2 - 2, Math.floor(2000 / binHz));
+  const kLo = Math.ceil(52 / binHz), kSplit = Math.floor(220 / binHz), kHi = Math.min(N / 2 - 2, Math.floor(2000 / binHz));
   const pc = new Int8Array(N / 2);
   for (let k = kLo; k <= kHi; k++) pc[k] = U.mod(Math.round(12 * Math.log2(k * binHz / 440)) + 9, 12);
   const re = new Float32Array(N), im = new Float32Array(N), mag = new Float32Array(N / 2);
@@ -205,7 +205,10 @@ function detectKey(ch) {
   let conf = U.clamp((best.score - rival.score) / 0.12);
   /* параллельная тональность (общий звукоряд) — честно снижаем уверенность */
   const rel = best.mode === 'major' ? U.mod(best.tonic + 9, 12) : U.mod(best.tonic + 3, 12);
-  if (rival.tonic === rel) conf = Math.min(conf, 0.4 + 0.6 * U.clamp((best.score - rival.score) / 0.3));
+  if (rival.tonic === rel) conf = Math.min(conf, bass[best.tonic] - bass[rel] > 0.08 ? 0.75 : 0.45);
+  /* тоника под вопросом, если соседняя по квинте тональность почти так же вероятна */
+  const twin = cand.find((c) => c.mode === best.mode && c.tonic !== best.tonic);
+  if (twin && best.score - twin.score < 0.1) conf = Math.min(conf, 0.45);
   const { mode, tonic } = best;
   return { mode, tonic, modeConf: conf, keyName: `${NOTE_RU[tonic]} ${mode === 'major' ? 'мажор' : 'минор'}`, keyCorr: best.corr };
 }

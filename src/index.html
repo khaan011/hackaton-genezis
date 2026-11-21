@@ -36,9 +36,14 @@
       <span class="muted" id="arch-count"></span>
       <div class="seg" id="arch-mode"><button data-mode="folders" class="on">Папки</button><button data-mode="feed">Лента</button></div>
       <div class="spacer"></div>
+      <button class="btn ghost smallb" data-tour>▶ Экскурсия</button>
       <button class="btn ghost smallb" id="btn-import">Импорт дневника</button>
       <button class="btn ghost smallb" id="btn-export">Экспорт дневника</button>
       <input type="file" id="in-import" accept=".zip,application/zip" hidden>
+    </div>
+    <div id="arch-hello" class="hello" hidden>
+      <div><b>Впервые здесь?</b> Дневник уже открыт на демо-днях. Экскурсия покажет главное по настоящему интерфейсу за 40 секунд — со звуком.</div>
+      <button class="btn primary" data-tour>▶ Смотреть экскурсию</button>
     </div>
     <div id="arch-strip" class="strip" hidden><span>цвета дневника</span><div class="bands"></div></div>
     <div id="arch-empty" class="empty" hidden>
@@ -53,7 +58,7 @@
 
   <!-- НОВЫЙ ДЕНЬ -->
   <section id="v-new" class="view" hidden>
-    <h1>Как прошёл день?</h1>
+    <div class="new-head"><h1>Как прошёл день?</h1><button class="btn ghost smallb" id="f-sample">✦ Попробовать на примере</button></div>
     <p class="lede">Расскажите, как рассказали бы близкому другу: погода, свет, запахи, звуки, люди рядом, мелкие детали. Система прочитает настроение, посмотрит на свет в фотографиях, послушает песню и соберёт страницу дневника.</p>
     <div class="form">
       <div class="card">
@@ -95,7 +100,7 @@
           <label class="field small"><span>Год</span><input id="f-year" inputmode="numeric" placeholder="1957" autocomplete="off"></label>
         </div>
         <div class="muted small" id="f-artist-hint" style="margin-top:8px"></div>
-        <div class="warn small" id="f-song-warn" hidden>Подпишите песню — иначе в кадре вместо названия будет имя файла.</div>
+        <div class="warn small" id="f-song-warn" hidden>Подпишите песню: исполнитель и название попадут в кадр. Сейчас там было бы имя файла.</div>
       </div>
       <div class="card optional no-artifact">
         <div class="step">По желанию · Погода дня</div>
@@ -164,6 +169,12 @@
   <div class="pbar"><i id="busy-bar"></i></div></div></div>
 <div id="dlg" hidden><div class="busy-card"><p id="dlg-text"></p><div class="actions" style="justify-content:center"><button class="btn ghost" id="dlg-no">Отмена</button><button class="btn primary" id="dlg-yes">Да</button></div></div></div>
 <div id="toast" role="status" aria-live="polite" hidden></div>
+<div id="tour" role="dialog" aria-label="Экскурсия" hidden><div class="tour-card">
+  <div class="tour-top"><span class="tour-k">Экскурсия</span><span id="tour-n"></span></div>
+  <p id="tour-text"></p>
+  <div class="tour-track"><i id="tour-bar"></i></div>
+  <div class="tour-act"><button class="btn ghost smallb" id="tour-stop">Закончить</button><button class="btn primary smallb" id="tour-next">Дальше →</button></div>
+</div></div>
 
 <script>
 /*SCRIPT*/

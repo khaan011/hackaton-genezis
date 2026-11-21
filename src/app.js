@@ -43,7 +43,8 @@ function setGlow(sum, mode) {
   const pal = (sum.palette && sum.palette.length ? sum.palette : [sum.accent]).filter(Boolean);
   const a = sum.accent || pal[0] || [169, 68, 43];
   const g = [a, pal[0] || a, pal[1] || pal[0] || a];
-  g.forEach((c, i) => root.style.setProperty(`--g${i + 1}`, rgbVar(c)));
+  const airy = (c) => { const [L, C, h] = U.rgb2lch(c); return U.lch2rgb([U.clamp(L, 66, 86), Math.max(C, 30), h]); };
+  g.forEach((c, i) => root.style.setProperty(`--g${i + 1}`, rgbVar(airy(c))));
   /* акцент для текста темнее, чтобы читался на бумаге */
   const lch = U.rgb2lch(a), tint = U.lch2rgb([Math.min(lch[0], 48), Math.max(lch[1], 30), lch[2]]);
   root.style.setProperty('--tint', rgbVar(tint));
@@ -77,6 +78,7 @@ const debounce = (fn, ms) => { let t = 0; return (...a) => { clearTimeout(t); t 
 function go(view) {
   if (state.view === 'day' && view !== 'day') stopDay();
   state.view = view;
+  document.documentElement.dataset.view = view;
   for (const v of ['archive', 'new', 'day', 'about']) $('#v-' + v).hidden = v !== view;
   $$('.nav').forEach((b) => b.classList.toggle('on', b.dataset.go === view));
   if (view !== 'day' && state.day) setGlow(state.day.summary, 'after');
@@ -104,6 +106,7 @@ async function renderArchive() {
   $('#arch-count').textContent = n ? `${n} ${U.plural(n, 'день', 'дня', 'дней')} · ${regs} ${U.plural(regs, 'настроение', 'настроения', 'настроений')}` : '';
   $('#arch-empty').hidden = n > 0;
   $('#arch-mode').hidden = n === 0;
+  $('#arch-hello').hidden = !state.days.some((d) => d.demo);
   if (!state.day && n) setGlow(state.days[state.days.length - 1].summary, 'after');
   /* цвета дневника: каждый день — полоска из его собственной палитры, по порядку дат */
   const strip = $('#arch-strip');
@@ -245,7 +248,7 @@ function showAnalysis() {
   const A = state.form.song.A;
   if (!A) return;
   const loud = A.loud > 0.6 ? 'громкая' : A.loud < 0.35 ? 'тихая' : 'средняя громкость';
-  $('#f-audio-info').textContent = `${Math.round(A.bpm)} BPM · ${A.keyName} (оценка) · ${loud} · ${U.fmtTime(A.duration)}`;
+  $('#f-audio-info').textContent = `${Math.round(A.bpm)} BPM · ${A.modeConf >= 0.5 ? A.keyName + " (оценка)" : "лад неоднозначен"} · ${loud} · ${U.fmtTime(A.duration)}`;
   $('#f-ex-label').textContent = `Фрагмент для воспоминания: с ${U.fmtTime(A.start)}. В дневник сохраняется только он, а не песня целиком. Передвиньте, если любимое место в другом.`;
 }
 function drawWave() {
@@ -300,8 +303,11 @@ function validate() {
   if (!f.photos.length) need.push('хотя бы одно фото');
   const songOk = f.song.mode === 'file' ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
   if (!songOk) need.push(f.song.mode === 'file' ? 'аудиофайл песни' : 'ссылка или название песни');
-  const unnamed = f.song.mode === 'file' && f.song.A && !$('#f-artist').value.trim() && !$('#f-title').value.trim();
+  const ar = $('#f-artist').value.trim(), ti = $('#f-title').value.trim();
+  const fileLike = !ar && /^[\w .()-]+$/.test(ti) && /\d/.test(ti);
+  const unnamed = f.song.mode === 'file' && f.song.A && ((!ar && !ti) || fileLike);
   $('#f-song-warn').hidden = !unnamed;
+  $('#f-artist').classList.toggle('want', !!unnamed); $('#f-title').classList.toggle('want', !!unnamed);
   $('#f-go').disabled = need.length > 0;
   $('#f-need').textContent = need.length ? 'Осталось: ' + need.join(', ') : 'Всё готово';
 }
@@ -758,6 +764,112 @@ function bind() {
   document.addEventListener('keydown', (e) => { if (state.view === 'day' && e.code === 'Space' && !/INPUT|TEXTAREA/.test(document.activeElement.tagName)) { e.preventDefault(); togglePlay(); } });
 }
 
+/* ---------- пример дня: форма заполняется одним кликом ---------- */
+async function sampleSource() {
+  let days = (await PV.Store.all()).filter((d) => d.photos && d.photos.length && d.song && d.song.excerpt);
+  if (!days.length && location.protocol.startsWith('http')) {
+    try {
+      const r = await fetch('demo/diary.zip', { cache: 'no-store' });
+      if (r.ok) {
+        const files = await PV.Zip.unzip(await r.blob());
+        const data = JSON.parse(new TextDecoder().decode(files['diary.json']));
+        days = (data.days || []).filter((d) => d.song && d.song.excerptFile).map((d) => ({
+          ...d,
+          photos: d.photos.map((p) => ({ blob: new Blob([files[p.file]], { type: 'image/jpeg' }) })),
+          song: { ...d.song, excerpt: new Blob([files[d.song.excerptFile]], { type: d.song.excerptExt === 'mp3' ? 'audio/mpeg' : 'audio/wav' }) },
+        }));
+      }
+    } catch (e) { console.warn(e); }
+  }
+  return days;
+}
+async function fillSample() {
+  const days = await sampleSource();
+  if (!days.length) { toast('Примеров пока нет: запишите свой первый день.'); return; }
+  state.sampleIdx = ((state.sampleIdx == null ? Math.floor(Math.random() * days.length) : state.sampleIdx) + 1) % days.length;
+  const d = days[state.sampleIdx];
+  resetForm();
+  $('#f-date').value = d.date;
+  $('#f-text').value = d.text;
+  textHint();
+  const [artist, title] = String(d.song.label || '').split(' — ');
+  $('#f-artist').value = artist || ''; $('#f-title').value = title || '';
+  const year = d.analysis && d.analysis.M && d.analysis.M.year;
+  if (year) $('#f-year').value = year;
+  await addPhotos(d.photos.map((p, i) => new File([p.blob], `пример-${i + 1}.jpg`, { type: 'image/jpeg' })));
+  await loadAudio(new File([d.song.excerpt], `пример.${d.song.excerptExt || 'mp3'}`, { type: d.song.excerpt.type || 'audio/mpeg' }));
+  validate();
+  toast('Пример заполнен. Поменяйте пару слов в записи — и посмотрите, как изменится день.', 6000);
+}
+
+/* ---------- экскурсия для жюри: главное за 40 секунд, по настоящему интерфейсу ---------- */
+const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
+const tour = { on: false, i: 0, timer: 0, wake: null };
+function spot(sel) {
+  $$('.spot').forEach((e) => e.classList.remove('spot'));
+  const el = sel && $(sel);
+  if (!el) return false;
+  el.classList.add('spot'); el.scrollIntoView({ behavior: 'smooth', block: 'center' });
+  return true;
+}
+async function tourDay(prefer) {
+  const days = await PV.Store.all();
+  const d = prefer.map((r) => days.find((x) => (x.summary || {}).register === r)).find(Boolean) || days[0];
+  if (!d) return false;
+  if (!state.day || state.day.id !== d.id) await openDayById(d.id);
+  return true;
+}
+function play() { const p = state.player; if (p && !p.playing) { p.started = true; togglePlay(); } }
+const TOUR = [
+  { t: 'Это дневник. Каждая обложка — один день, а полоса сверху — цвета всех дней по порядку дат.', ms: 6500,
+    run: async () => { go('archive'); await sleep(350); spot('#arch-strip:not([hidden])') || spot('#arch-grid'); } },
+  { t: 'Текст, фото и песня дня стали видео 9:16. Кадры меняются в долю песни, свет «дышит» её громкостью.', ms: 9000,
+    run: async () => { if (!(await tourDay(['monet', 'film', 'matisse']))) return; spot('#d-frame'); play(); } },
+  { t: 'Шесть осей настроения из текста, фото и звука выбирают художественный режим. Заметьте: интерфейс окрасился в цвета дня.', ms: 6500,
+    run: async () => spot('#d-axes') },
+  { t: 'Каждое решение объяснено: почему такой ритм, свет, тени и детали.', ms: 6500,
+    run: async () => spot('#d-why') },
+  { t: 'Другой день — другой приём. Но рамка, печать и дорожка песни те же: это страницы одного дневника.', ms: 8000,
+    run: async () => { if (!(await tourDay(['nocturne', 'kandinsky', 'ma']))) return; spot('#d-frame'); play(); } },
+  { t: 'Не похоже на ваш день? Сдвиньте ось — страница пересоберётся по тем же правилам.', ms: 6000,
+    run: async () => { stopDay(); $('#d-tune').open = true; spot('#d-tune'); } },
+  { t: 'Лента: все дни рядом. Разные настроения — одна визуальная система.', ms: 6000,
+    run: async () => { $('#d-tune').open = false; go('archive'); await sleep(300); const b = $('#arch-mode [data-mode="feed"]'); if (b) b.click(); spot('#arch-feed'); } },
+  { t: 'Ваша очередь: нажмите «Попробовать на примере» или запишите свой день.', ms: 8000,
+    run: async () => { const b = $('#arch-mode [data-mode="folders"]'); if (b) b.click(); go('new'); await sleep(300); spot('#f-sample'); } },
+];
+async function tourStep(i) {
+  clearTimeout(tour.timer);
+  if (!tour.on) return;
+  if (i >= TOUR.length) return endTour();
+  tour.i = i;
+  const s = TOUR[i];
+  $('#tour-text').textContent = s.t;
+  $('#tour-n').textContent = `${i + 1} / ${TOUR.length}`;
+  $('#tour-bar').style.animation = 'none'; void $('#tour-bar').offsetWidth;
+  $('#tour-bar').style.animation = `tourbar ${s.ms}ms linear both`;
+  $('#tour-next').textContent = i === TOUR.length - 1 ? 'Готово' : 'Дальше →';
+  try { await s.run(); } catch (e) { console.warn(e); }
+  if (tour.on && tour.i === i) tour.timer = setTimeout(() => tourStep(i + 1), s.ms);
+}
+function startTour() {
+  tour.on = true; $('#tour').hidden = false; document.documentElement.classList.add('touring');
+  tourStep(0);
+}
+function endTour() {
+  tour.on = false; clearTimeout(tour.timer);
+  $('#tour').hidden = true; document.documentElement.classList.remove('touring');
+  $$('.spot').forEach((e) => e.classList.remove('spot'));
+  if (state.player && state.player.playing) togglePlay();
+}
+function bindTour() {
+  $$('[data-tour]').forEach((b) => { b.onclick = startTour; });
+  $('#tour-next').onclick = () => tourStep(tour.i + 1);
+  $('#tour-stop').onclick = endTour;
+  $('#f-sample').onclick = () => fillSample().catch((e) => { console.error(e); toast('Не получилось загрузить пример'); });
+  document.addEventListener('keydown', (e) => { if (tour.on && e.key === 'Escape') endTour(); });
+}
+
 async function init() {
   bind();
   try {
@@ -766,7 +878,7 @@ async function init() {
   let days = [];
   try { days = await PV.Store.all(); } catch (e) { days = []; }
   if (PV.Store.mode === 'memory') toast('Браузер не даёт хранить дневник: дни будут жить до закрытия вкладки. Чтобы сохранить, используйте «Экспорт дневника».', 9000);
-  bindTilt();
+  bindTilt(); bindTour();
   go('archive');
   /* демо-дневник грузится в фоне и не уводит человека с экрана, который он уже открыл */
   if (!days.length && location.protocol.startsWith('http')) {
@@ -781,6 +893,6 @@ async function init() {
   }
 }
 
-PV.App = { IN_ARTIFACT, state, go, openDayById, importDiary, exportDiary, buildDay, addPhotos, loadAudio };
+PV.App = { IN_ARTIFACT, state, go, startTour, endTour, fillSample, openDayById, importDiary, exportDiary, buildDay, addPhotos, loadAudio };
 document.addEventListener('DOMContentLoaded', init);
 })();
