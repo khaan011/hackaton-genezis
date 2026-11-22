@@ -3,3 +3,4 @@ test/assets/
 test/out/
 __pycache__/
 node_modules/
+out/

@@ -13,11 +13,19 @@ jobs:
           python-version: '3.12'
       - name: Сборка совпадает с index.html в корне
         run: python3 build.py && cmp build/index.html index.html
-      - name: Текст, названия и выбор режимов
+      - name: Текст, названия, выбор режимов и сцены
         run: node test/node_text.js
+      - name: Instagram — ZIP, ZIP64, выгрузка, EXIF, черновик
+        run: |
+          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg zip
+          node test/node_insta.js
       - name: Аудиоанализ на синтезированных песнях
         run: |
-          sudo apt-get update -qq && sudo apt-get install -y -qq ffmpeg
           pip install -q numpy pillow
           (cd test && python3 gen_music.py)
           node test/node_audio.js
+      - name: Instagram в Chrome — вход (стенд API + настоящий прокси), архив, фотоплёнка, сборка дней
+        run: |
+          npm ci
+          npx playwright install --with-deps chromium
+          node test/ig_e2e.js

@@ -1,0 +1,10 @@
+# Деплой прокси: npx wrangler deploy (из папки connect), затем секреты:
+#   npx wrangler secret put IG_APP_SECRET
+name = "poslevkusie-instagram"
+main = "instagram-proxy.js"
+compatibility_date = "2025-06-01"
+
+[vars]
+IG_APP_ID = ""            # App ID приложения Meta (Instagram API with Instagram Login)
+ALLOWED_ORIGINS = "https://khaan011.github.io"
+ALLOWED_REDIRECTS = "https://khaan011.github.io/hackaton-genezis/"

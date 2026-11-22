@@ -87,7 +87,7 @@ p, li { font-size: 34px; line-height: 1.45; }
     <div>
       <div class="cols" style="grid-template-columns:1fr">
         <div class="box"><b>Пишете, как другу</b><p>«Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао…»</p></div>
-        <div class="box"><b>Добавляете 1–8 фото и песню дня</b><p>MP3 из телефона или ссылка на любой сервис.</p></div>
+        <div class="box"><b>Добавляете 1–8 фото и песню дня</b><p>Найти песню, файл или ссылка — или просто привяжите Instagram.</p></div>
         <div class="box"><b>Получаете страницу дневника</b><p>Видео под фрагмент вашей песни в папке «Осенний парк и какао» — с объяснением каждого решения.</p></div>
       </div>
     </div>
@@ -144,11 +144,25 @@ p, li { font-size: 34px; line-height: 1.45; }
     <div class="phones"><img src="img/m-archive.jpg" alt=""><img src="img/m-form.jpg" alt=""><img src="img/m-day.jpg" alt=""></div>
     <div>
       <p>Нижняя панель с «＋», шаги «Запись · Фото · Песня», свайп листает дни как сторис.</p>
-      <p><b>▶ Экскурсия</b> — 40 секунд по живому интерфейсу со звуком.</p>
+      <p><b>▶ Экскурсия</b> — минута по живому интерфейсу со звуком.</p>
       <p><b>✦ Попробовать на примере</b> — если под рукой нет фото и MP3.</p>
     </div>
   </div>
   <div class="num">07</div>
+</section></div>
+
+<div class="wrap"><section class="slide" style="padding-top:90px">
+  <div class="k">Новое · Мгновения из Instagram</div>
+  <h2 style="margin-bottom:30px">Привяжите Instagram — дни соберутся сами</h2>
+  <div class="split" style="height:auto;grid-template-columns:1fr 840px;gap:56px;align-items:start">
+    <div class="cols" style="grid-template-columns:1fr;gap:20px">
+      <div class="box"><b>Войти через Instagram</b><p>Официальный API, только чтение публикаций. Токен — только на устройстве.</p></div>
+      <div class="box"><b>Архив «Скачать информацию»</b><p>Любой аккаунт. ZIP разбирается прямо в браузере: посты, сторис, карусели.</p></div>
+      <div class="box"><b>Мгновения</b><p>Новые моментальные снимки Instagram (май 2026): по API недоступны — берём из галереи по дате съёмки.</p></div>
+    </div>
+    <div><img class="shot" src="img/instagram-days.jpg" alt=""><p class="soft" style="font-size:26px;margin-top:22px">Снимки → дни → черновик записи по времени, подписям и свету («☔» → «дождь») → страница дневника в своём режиме. Дописать, как день ощущался, — за человеком.</p></div>
+  </div>
+  <div class="num">08</div>
 </section></div>
 
 <div class="wrap"><section class="slide">
@@ -159,21 +173,32 @@ p, li { font-size: 34px; line-height: 1.45; }
     <div class="box"><b>Свой рендер</b><p>Canvas 2D: мазки по полю направлений, плакатный растр, вырезки, плёнка, мокрое стекло. Видео 1080×1920 через MediaRecorder.</p></div>
     <div class="box"><b>Приватность</b><p>Данные не покидают устройство: IndexedDB, из песни хранится только фрагмент. Папка дня — ZIP.</p></div>
   </div>
-  <p class="soft" style="margin-top:36px;font-size:29px">Один файл index.html · тесты с проверками и GitHub Actions · сквозной сценарий в Chrome (Playwright) · ИИ (Claude) — помощь в проектировании, коде и текстах.</p>
-  <div class="num">08</div>
+  <p class="soft" style="margin-top:36px;font-size:29px">Один файл index.html · 100 автопроверок в GitHub Actions · сквозные сценарии в Chrome (Playwright), включая вход через Instagram с настоящим прокси · ИИ (Claude) — помощь в проектировании, коде и текстах.</p>
+  <div class="num">09</div>
 </section></div>
 
 <div class="wrap"><section class="slide">
   <div class="k">Результаты</div>
-  <h2>Шесть разных дней — шесть разных режимов</h2>
+  <h2>На настоящих фото и записях</h2>
   <div class="stat">
-    <div><b>6 / 6</b><span>тестовых дней попали в задуманный режим</span></div>
-    <div><b>±2 BPM</b><span>точность темпа на 6 из 6 песен</span></div>
-    <div><b>5 / 6</b><span>лад верен, ни одной уверенной ошибки</span></div>
-    <div><b>1–5 с</b><span>сборка страницы дня в браузере</span></div>
+    <div><b>6 / 6</b><span>демо-дней с открытыми фото и записями (Сати, Шопен, 1920-е, электроника) — в задуманном режиме</span></div>
+    <div><b>±2 BPM</b><span>темп на проверочных песнях; тональность называем только при уверенности ≥ 60%</span></div>
+    <div><b>3 пути</b><span>из Instagram в дневник: вход, архив, фотоплёнка — снимки не уходят с устройства</span></div>
+    <div><b>0,5–3 с</b><span>сборка страницы дня в браузере, 4 дня из Instagram — меньше минуты</span></div>
   </div>
-  <p class="soft" style="margin-top:40px;font-size:28px"><b style="color:var(--ink)">Честно:</b> лад — оценка, при сомнении мы так и пишем · песню по ссылке браузер не даёт анализировать — характер берётся из описания · видео пишется в реальном времени · настроение — подбор оформления, а не психологическая диагностика.</p>
-  <div class="num">09</div>
+  <p class="soft" style="margin-top:40px;font-size:28px"><b style="color:var(--ink)">Честно:</b> лад — оценка, при сомнении мы так и пишем · вход через Instagram — для профессиональных аккаунтов и после проверки приложения Meta; мгновения Instagram по API не отдаёт · черновик из подписей — подсказка, а не чувство · настроение — подбор оформления, а не диагностика.</p>
+  <div class="num">10</div>
+</section></div>
+
+<div class="wrap"><section class="slide">
+  <div class="k">Дальше</div>
+  <h2>Для кого и что дальше</h2>
+  <div class="cols">
+    <div class="box"><b>Для кого</b><ul><li>те, кто ведёт дневник или заметки дня</li><li>те, кто снимает сторис и мгновения, но не пересматривает их</li><li>пары и друзья — общие дни</li></ul></div>
+    <div class="box"><b>Модель</b><ul><li>бесплатно: дневник, режимы, Instagram</li><li>подписка: «Послевкусие года» — фильм-итог, новые режимы</li><li>печатная книга дней</li></ul></div>
+    <div class="box"><b>Шаги</b><ul><li>проверка приложения Meta → вход для всех</li><li>офлайн-приложение (PWA)</li><li>общий день на двоих</li><li>итог месяца и года</li></ul></div>
+  </div>
+  <div class="num">11</div>
 </section></div>
 
 <div class="wrap"><section class="slide" style="padding-top:150px">
@@ -181,10 +206,11 @@ p, li { font-size: 34px; line-height: 1.45; }
   <div class="big-quote" style="margin-top:70px">Откроете запись через год —<br>и вспомните, как ощущался день.</div>
   <div class="links">
     прототип · khaan011.github.io/hackaton-genezis<br>
-    код · github.com/khaan011/hackaton-genezis
+    код · github.com/khaan011/hackaton-genezis<br>
+    видео · khaan011.github.io/hackaton-genezis/docs/demo.mp4
   </div>
   <div class="bar"><i style="background:#d9a55a"></i><i style="background:#2f4fa2"></i><i style="background:#c2412d"></i><i style="background:#e07b39"></i><i style="background:#e8b23a"></i><i style="background:#33406b"></i></div>
-  <div class="num">10</div>
+  <div class="num">12</div>
 </section></div>
 
 </div>

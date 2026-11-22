@@ -447,7 +447,7 @@ class Renderer {
     ctx.globalAlpha = U.clamp((t - 0.6) / 1);
     setFont(ctx, 'mono', 22, 400); setSpacing(ctx, 1);
     ctx.fillStyle = U.css(soft, 0.95); ctx.textAlign = 'left';
-    const bits = [m.label || 'песня дня', `${Math.round(m.bpm || S.bpm)} BPM`];
+    const bits = [m.label || 'песня дня', `${m.bpmApprox ? '≈' : ''}${Math.round(m.bpm || S.bpm)} BPM`];
     if (m.keyName) bits.push(m.keyName);
     let txt = '♪ ' + bits.join('  ·  ');
     while (txt.length > 4 && ctx.measureText(txt).width > x1 - x0) txt = txt.slice(0, -2) + '…';

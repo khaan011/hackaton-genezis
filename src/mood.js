@@ -237,6 +237,9 @@ function colorName(rgb) {
 
 /* ---------- 6. объяснение: сигнал → правило → эффект ---------- */
 const KEYS_RU = { major: 'мажор', minor: 'минор' };
+/* тональность называем, только если анализ в ней уверен: иначе честно «лад неоднозначен» */
+const KEY_CONF = 0.6;
+const keyShown = (M) => (M && M.keyName && (M.modeConf ?? 1) >= KEY_CONF ? M.keyName : null);
 const TOD_RU = { morning: 'утро', day: 'день', evening: 'вечер', night: 'ночь' };
 const SEASON_RU = { autumn: 'осень', winter: 'зима', spring: 'весна', summer: 'лето' };
 const pct = (x) => Math.round(x * 100) + '%';
@@ -249,12 +252,12 @@ function explain(day, S) {
   const trans = { dissolve: 'мягкие наплывы', cut: 'склейки ровно в долю', pause: 'между кадрами пауза пустой страницы', drop: 'новый отпечаток падает на стопку', pop: 'кадры выпрыгивают на сильную долю' }[S.transition];
   if (M && M.source === 'audio') {
     const loud = M.loud > 0.6 ? 'плотная и громкая' : M.loud < 0.35 ? 'тихая' : 'средней громкости';
-    lines.push({ k: 'Музыка', t: `${Math.round(M.bpm)} BPM, ${M.keyName || KEYS_RU[M.mode]}${M.source === "audio" ? ((M.modeConf ?? 1) < 0.5 ? " (лад неоднозначен, оценка)" : " (оценка)") : ""}, ${loud} → кадр меняется каждые ${beatsWord(S.beatsPerShot)} (≈${U.fmtNum(S.shotSec, 1)} с), ${trans}. Громкость песни в каждый момент управляет светом и «дыханием» кадра.` });
+    lines.push({ k: 'Музыка', t: `${M.bpmConf != null && M.bpmConf < 0.4 ? '≈' : ''}${Math.round(M.bpm)} BPM${M.bpmConf != null && M.bpmConf < 0.4 ? ' (темп — оценка: доли в песне выражены слабо)' : ''}, ${keyShown(M) ? keyShown(M) + ' (оценка)' : `лад неоднозначен (скорее ${KEYS_RU[M.mode]}, уверенность ${pct(M.modeConf || 0)})`}, ${loud} → кадр меняется каждые ${beatsWord(S.beatsPerShot)} (≈${U.fmtNum(S.shotSec, 1)} с), ${trans}. Громкость песни в каждый момент управляет светом и «дыханием» кадра.` });
   } else if (M) {
     lines.push({ k: 'Музыка', t: `по описанию: ${M.describeLabel} → темп ${Math.round(M.bpm)} BPM, кадр каждые ${beatsWord(S.beatsPerShot)} (≈${U.fmtNum(S.shotSec, 1)} с), ${trans}.` });
   }
   if (M) {
-    const modeTxt = M.mode === 'minor' ? 'Минор' : 'Мажор';
+    const modeTxt = (M.mode === 'minor' ? 'Минор' : 'Мажор') + (M.source === 'audio' && !keyShown(M) ? ' (оценка)' : '');
     lines.push({ k: 'Лад и воздух', t: `${modeTxt} и ${m.D < 0.4 ? 'мало событий' : m.D > 0.65 ? 'много событий' : 'средний ритм дня'} → воздух вокруг фото ${pct(S.air)}, насыщенность ×${U.fmtNum(S.sat, 2)}.` });
   }
   lines.push({ k: 'Режим', t: `энергия ${pct(m.E)}, тон ${pct(m.V)}, тепло ${pct(m.W)}${m.N > 0.35 ? ', ностальгия ' + pct(m.N) : ''} → «${reg.name}»: ${reg.technique}.` });
@@ -278,5 +281,5 @@ function explain(day, S) {
   return lines;
 }
 
-PV.Mood = { REG, ORDER, fuse, scoreRegisters, buildStyle, explain, colorName, resolveTod, TOD_RU, SEASON_RU };
+PV.Mood = { keyShown, KEY_CONF, REG, ORDER, fuse, scoreRegisters, buildStyle, explain, colorName, resolveTod, TOD_RU, SEASON_RU };
 })();

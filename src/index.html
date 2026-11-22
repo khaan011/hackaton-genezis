@@ -3,6 +3,7 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="theme-color" content="#14101c">
 <title>Послевкусие — дневник атмосферы дня</title>
 <link rel="icon" href="data:image/svg+xml,%3Csvg xmlns=%27http://www.w3.org/2000/svg%27 viewBox=%270 0 64 64%27%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2728%27 fill=%27%23a9442b%27/%3E%3Ccircle cx=%2732%27 cy=%2732%27 r=%2717%27 fill=%27none%27 stroke=%27%23f3efe7%27 stroke-width=%273%27/%3E%3C/svg%3E">
 <meta name="description" content="Личный дневник, который превращает день — текст, фото и песню — в воспоминание, передающее его атмосферу.">
@@ -11,6 +12,9 @@
 <meta property="og:description" content="Текст, фото и песня дня превращаются в вертикальное видео-воспоминание 9:16 в одном из шести художественных режимов. ArtTech, Genesis Hackathon 2026.">
 <meta property="og:image" content="https://khaan011.github.io/hackaton-genezis/og.jpg">
 <meta name="twitter:card" content="summary_large_image">
+<!-- Вход через Instagram: App ID приложения Meta и адрес прокси (connect/instagram-proxy.js). Пусто — вход выключен, архив и фотоплёнка работают. -->
+<meta name="pv-ig-app-id" content="">
+<meta name="pv-ig-proxy" content="">
 <style>
 /*FONTS*/
 /*STYLE*/
@@ -23,6 +27,7 @@
   <button class="brand" data-go="archive" aria-label="Послевкусие — к архиву"><span class="logo">Послевкусие</span><span class="tag">дневник атмосферы дня</span></button>
   <nav>
     <button class="nav" data-go="archive">Архив</button>
+    <button class="nav" data-go="insta">Instagram</button>
     <button class="nav" data-go="about"><span class="long">Как это работает</span><span class="short">О системе</span></button>
     <button class="btn primary" data-go="new">Записать день</button>
   </nav>
@@ -37,12 +42,14 @@
       <div class="seg" id="arch-mode"><button data-mode="folders" class="on">Папки</button><button data-mode="feed">Лента</button></div>
       <div class="spacer"></div>
       <button class="btn ghost smallb" data-tour>▶ Экскурсия</button>
+      <button class="btn ghost smallb ig-btn" data-go="insta">📷 Из Instagram</button>
+      <button class="btn ghost smallb phone-only" data-go="about">О системе</button>
       <button class="btn ghost smallb" id="btn-import">Импорт дневника</button>
       <button class="btn ghost smallb" id="btn-export">Экспорт дневника</button>
       <input type="file" id="in-import" accept=".zip,application/zip" hidden>
     </div>
     <div id="arch-hello" class="hello" hidden>
-      <div><b>Впервые здесь?</b> Дневник уже открыт на демо-днях. Экскурсия покажет главное по настоящему интерфейсу за 40 секунд — со звуком.</div>
+      <div><b>Впервые здесь?</b> Дневник уже открыт на демо-днях. Экскурсия покажет главное по настоящему интерфейсу за минуту — со звуком.</div>
       <button class="btn primary" data-tour>▶ Смотреть экскурсию</button>
     </div>
     <div id="arch-strip" class="strip" hidden><span>цвета дневника</span><div class="bands"></div></div>
@@ -50,7 +57,7 @@
       <div class="ghosts" aria-hidden="true"><i style="--c:#d9a55a;--r:-9deg;--x:-58px"></i><i style="--c:#33406b;--r:2deg;--x:0px"></i><i style="--c:#e8b23a;--r:11deg;--x:58px"></i></div>
       <h2>Здесь будут ваши дни</h2>
       <p>Фотографии помнят, как выглядел день. Здесь останется, как он <em>ощущался</em>. Начните с одного из любимых дней: напишите о нём, как рассказали бы близкому другу, добавьте настоящие фотографии и ту самую песню.</p>
-      <button class="btn primary big" data-go="new">Записать день</button>
+      <div class="actions" style="justify-content:center"><button class="btn primary big" data-go="new">Записать день</button><button class="btn ghost big" data-go="insta">📷 Из Instagram</button></div>
     </div>
     <div id="arch-grid" class="grid"></div>
     <div id="arch-feed" class="feed" hidden></div>
@@ -58,7 +65,8 @@
 
   <!-- НОВЫЙ ДЕНЬ -->
   <section id="v-new" class="view" hidden>
-    <div class="new-head"><h1>Как прошёл день?</h1><button class="btn ghost smallb" id="f-sample">✦ Попробовать на примере</button></div>
+    <div class="new-head"><h1>Как прошёл день?</h1><button class="btn ghost smallb" id="f-sample">✦ Попробовать на примере</button><button class="btn ghost smallb" data-go="insta">📷 Взять из Instagram</button></div>
+    <div class="ig-note" id="f-ig-note" hidden></div>
     <p class="lede">Расскажите, как рассказали бы близкому другу: погода, свет, запахи, звуки, люди рядом, мелкие детали. Система прочитает настроение, посмотрит на свет в фотографиях, послушает песню и соберёт страницу дневника.</p>
     <ol class="fsteps" id="f-steps" aria-label="Шаги">
       <li><button data-jump="#f-text" data-k="text"><i><b>1</b></i>Запись</button></li>
@@ -79,9 +87,9 @@
         <div class="hint" id="f-photo-hint"></div>
         <p class="muted small" style="margin:6px 0 0">Фото подскажут палитру и свет. Само воспоминание дневник дорисует по вашим словам — сцена за сценой.</p>
       </div>
-      <div class="card">
+      <div class="card" id="f-song-card">
         <div class="step">3 · Песня дня</div>
-        <div class="seg" id="f-song-mode"><button data-m="search" class="on">🔍 Найти</button><button data-m="file">Файл</button><button data-m="link">Ссылка</button></div>
+        <div class="seg" id="f-song-mode"><button data-m="search" class="on">🔍 Найти</button><button data-m="file">Файл</button><button data-m="link">Ссылка</button><button data-m="none">Без песни</button></div>
         <div id="f-song-search">
           <input type="search" id="f-q" placeholder="Исполнитель или название: Кино, Billie Eilish, Ветер…" autocomplete="off" enterkeyhint="search">
           <div class="muted small" id="f-search-status" aria-live="polite"></div>
@@ -92,11 +100,12 @@
           <label class="drop small" id="f-adrop"><input type="file" id="f-audio" accept="audio/*,.mp3,.m4a,.wav,.ogg,.flac,.aac"><span class="hov">MP3, M4A, WAV или OGG — полный аудиоанализ</span><span class="tap">♪ Выбрать песню: MP3, M4A или WAV</span></label>
           <div id="f-audio-info" class="analysis-line"></div>
           <div id="f-wave-wrap" hidden>
-            <canvas id="f-wave" width="1200" height="128"></canvas>
-            <input type="range" id="f-ex-start" min="0" max="100" step="0.5" value="0">
+            <canvas id="f-wave" width="1200" height="128" role="img" aria-label="Волна песни; выделен фрагмент для воспоминания"></canvas>
+            <input type="range" id="f-ex-start" min="0" max="100" step="0.5" value="0" aria-label="Начало фрагмента песни, секунды">
             <div class="muted small" id="f-ex-label"></div>
           </div>
         </div>
+        <div id="f-song-none" class="muted small" hidden>Ритм дня возьмём из снимков: темп — по числу кадров и их насыщенности, характер — по свету и теплу. Песню можно добавить позже, записав день заново.</div>
         <div id="f-song-link" hidden>
           <input type="url" id="f-url" placeholder="Ссылка на YouTube, Spotify, Яндекс Музыку, SoundCloud…">
           <div class="muted small" id="f-url-info" style="margin-top:6px"></div>
@@ -132,7 +141,7 @@
     <div class="day">
       <div class="stage">
         <div class="day-nav"><button class="btn icon ghost" id="d-prev" aria-label="Предыдущий день">‹</button><span class="pos"><span id="d-pos"></span><span class="swipe-hint"> · листайте кадр</span></span><button class="btn icon ghost" id="d-next" aria-label="Следующий день">›</button></div>
-        <div class="frame" id="d-frame"><canvas id="d-canvas"></canvas><div class="big-play"><span>▶</span></div></div>
+        <div class="frame" id="d-frame"><canvas id="d-canvas" role="img" aria-label="Видео-воспоминание дня: нажмите, чтобы играть или поставить на паузу"></canvas><div class="big-play"><span>▶</span></div></div>
         <div class="controls">
           <button class="btn icon" id="d-play" aria-label="Играть">▶</button>
           <input type="range" id="d-seek" min="0" max="1000" value="0" aria-label="Время">
@@ -150,7 +159,7 @@
       <aside class="panel">
         <div class="folder-head">
           <svg class="folder-ico" viewBox="0 0 40 32" aria-hidden="true"><path d="M2 6a3 3 0 0 1 3-3h10l4 4h16a3 3 0 0 1 3 3v17a3 3 0 0 1-3 3H5a3 3 0 0 1-3-3z" fill="var(--rust)" opacity=".85"/></svg>
-          <input id="d-title" class="title-in" maxlength="70" aria-label="Название папки дня">
+          <textarea id="d-title" class="title-in" maxlength="70" rows="1" aria-label="Название папки дня"></textarea>
         </div>
         <div class="meta" id="d-meta"></div>
         <div class="seg vis" id="d-visual" role="group" aria-label="Из чего собрано видео"><button data-v="scenes">✦ Сцены</button><button data-v="mix">Вместе</button><button data-v="photos">Мои фото</button></div>
@@ -173,6 +182,52 @@
     </div>
   </section>
 
+  <!-- МГНОВЕНИЯ ИЗ INSTAGRAM -->
+  <section id="v-insta" class="view insta" hidden>
+    <div class="new-head"><h1>Мгновения из Instagram</h1><button class="btn ghost smallb" id="ig-demo">✦ Попробовать на демо-архиве</button></div>
+    <p class="lede">Привяжите Instagram — дневник сам разложит ваши снимки по дням, напишет черновик записи по подписям и времени и соберёт страницы. Всё разбирается прямо в браузере: снимки никуда не отправляются.</p>
+    <div class="ig-ways">
+      <div class="card ig-way" id="ig-acc">
+        <div class="step">Аккаунт</div>
+        <h3>Войти через Instagram</h3>
+        <p class="ig-simple">Нажми — откроется окошко Instagram. Вводишь <b>ник и пароль</b> — и всё: публикации, сторис и мгновения сами разложатся по дням.</p>
+        <p class="muted small">Пароль видит только Instagram, дневник — нет. Код из письма или SMS, если Instagram его попросит, вводится там же.</p>
+        <div id="ig-acc-state" class="ig-state"></div>
+        <div class="actions"><button class="btn primary" id="ig-login">Войти через Instagram</button><button class="btn ghost smallb" id="ig-refresh" hidden>Обновить</button><button class="btn ghost smallb danger" id="ig-logout" hidden>Отвязать</button></div>
+        <div class="seg ig-period" id="ig-period" hidden><button data-d="30">30 дней</button><button data-d="90" class="on">90 дней</button><button data-d="365">год</button></div>
+        <details class="ig-dev"><summary>Для разработчика</summary>
+          <p class="muted small">Вход работает, когда у сайта есть приложение Meta (App ID) и маленький прокси, который меняет код входа на токен, — секрет приложения нельзя хранить в браузере. Прокси — <code>connect/instagram-proxy.js</code> (Cloudflare Worker), инструкция — в README.</p>
+          <label class="field"><span>App ID</span><input id="ig-app-id" autocomplete="off" inputmode="numeric" placeholder="1234567890"></label>
+          <label class="field"><span>Адрес прокси</span><input id="ig-proxy" type="url" autocomplete="off" placeholder="https://poslevkusie-ig.workers.dev"></label>
+          <div class="actions"><button class="btn ghost smallb" id="ig-save-cfg">Сохранить на этом устройстве</button></div>
+        </details>
+      </div>
+      <div class="card ig-way">
+        <div class="step">Архив</div>
+        <h3>Архив Instagram</h3>
+        <p class="muted small">Все ваши посты, сторис и архив — для любого аккаунта, и личного тоже. В Instagram: <b>Настройки → Центр аккаунтов → Ваша информация и разрешения → Скачать информацию</b>, формат <b>JSON</b>, раздел «Медиа». Пришлите ZIP сюда.</p>
+        <div class="actions"><label class="btn primary file-btn"><input type="file" id="ig-zip" accept=".zip,application/zip" hidden>Выбрать ZIP</label><label class="btn ghost smallb file-btn no-touch"><input type="file" id="ig-dir" webkitdirectory hidden>Папка (распакованный)</label></div>
+      </div>
+      <div class="card ig-way">
+        <div class="step">Мгновения</div>
+        <h3>Мгновения из фотоплёнки</h3>
+        <p class="muted small"><b>Мгновения (Instants)</b> — моментальные снимки Instagram с мая 2026: камера прямо сейчас, без фильтров, подпись до съёмки, только для близких. У вас они лежат в личном архиве мгновений до года, но по API Instagram их не отдаёт. Выберите снимки мгновений из галереи телефона — дневник разложит их по дате съёмки.</p>
+        <div class="actions"><label class="btn primary file-btn"><input type="file" id="ig-gallery" accept="image/*" multiple hidden>📷 Выбрать снимки</label></div>
+      </div>
+    </div>
+    <div id="ig-status" class="muted small ig-status" aria-live="polite"></div>
+    <div id="ig-found" hidden>
+      <div class="ig-found-head">
+        <h2 id="ig-found-title"></h2>
+        <div class="spacer"></div>
+        <label class="ig-all"><input type="checkbox" id="ig-all"> выбрать все</label>
+        <button class="btn primary" id="ig-build" disabled>Собрать выбранные</button>
+      </div>
+      <p class="muted small">Черновик записи дневник напишет по подписям, времени и свету снимков, ритм — по снимкам (песню можно выбрать, открыв день в форме). Лучше всего — открыть день в форме и дописать пару фраз о том, как он ощущался.</p>
+      <div id="ig-days" class="ig-days"></div>
+    </div>
+  </section>
+
   <!-- КАК ЭТО РАБОТАЕТ -->
   <section id="v-about" class="view about" hidden></section>
 </main>
@@ -182,7 +237,7 @@
   <button class="tab" id="tab-feed"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3" y="4" width="5" height="16" rx="1.5"/><rect x="9.5" y="4" width="5" height="16" rx="1.5"/><rect x="16" y="4" width="5" height="16" rx="1.5"/></svg><span>Лента</span></button>
   <button class="tab plus" data-go="new" aria-label="Записать день"><span class="plus-i">+</span><span>Записать</span></button>
   <button class="tab" data-tour><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M10 8.5v7l6-3.5z"/></svg><span>Экскурсия</span></button>
-  <button class="tab" data-go="about"><svg viewBox="0 0 24 24" aria-hidden="true"><circle cx="12" cy="12" r="9"/><path d="M12 11v6M12 7.5v.5"/></svg><span>О системе</span></button>
+  <button class="tab" data-go="insta"><svg viewBox="0 0 24 24" aria-hidden="true"><rect x="3.5" y="3.5" width="17" height="17" rx="5"/><circle cx="12" cy="12" r="4"/><circle cx="17.2" cy="6.8" r=".6"/></svg><span>Instagram</span></button>
 </nav>
 <div id="busy" hidden><div class="busy-card" role="status" aria-live="polite">
   <svg class="ink" viewBox="0 0 120 120" aria-hidden="true"><circle class="ring" cx="60" cy="60" r="50" pathLength="100"/><circle class="draw" cx="60" cy="60" r="50" pathLength="100"/><g class="spin"><circle cx="60" cy="60" r="36" pathLength="100"/></g><circle class="core" cx="60" cy="60" r="9"/></svg>

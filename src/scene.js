@@ -10,7 +10,7 @@ const SW = 900, SH = 1200;
 /* ---------- словарь сцен ---------- */
 const K = {
   place: {
-    office: ['офис', '=код', 'кода', 'ноут', 'компьют', 'монитор', 'дедлайн', 'хакатон', 'программ', 'на работе', 'опенспейс'],
+    office: ['офис', 'проект', '=код', 'кода', 'ноут', 'компьют', 'монитор', 'дедлайн', 'хакатон', 'программ', 'на работе', 'опенспейс'],
     party: ['день рождения', 'праздн', 'вечерин', 'торт', 'шарик', 'концерт', 'клуб', 'танц', 'сюрприз', 'гост'],
     cafe: ['кафе', 'кофейн', 'ресторан', '=бар', 'пиццер'],
     home: ['=дома', 'квартир', 'комнат', 'кухн', 'кроват', 'диван', 'балкон', 'проснул', 'плед'],
@@ -124,6 +124,14 @@ function plan(T, S, seed) {
     for (let i = 0; i < parts.length - 1; i++) { const l = parts[i].length + parts[i + 1].length; if (l < bl) { bl = l; bi = i; } }
     parts.splice(bi, 2, parts[bi] + ', ' + parts[bi + 1].charAt(0).toLowerCase() + parts[bi + 1].slice(1));
   }
+  /* место, названное во фразе явно (без темы разговора и направления) — нужно и для взгляда вперёд */
+  const explicitPlace = (text) => {
+    const placeText = text.replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+(\s+[^\s,.;]+)?/gi, ' ').replace(/(^|\s)(на|в|во|к)\s+(работу|учёбу|учебу|школу|университет|универ|офис|пары)(?=[\s,.;!?]|$)/gi, ' ');
+    const pdoc = PV.Text.prepare(placeText);
+    const transport = PV.Text.scan(pdoc, ['автобус', 'трамва', 'метро', 'такси', 'электрич', 'поезд', 'маршрутк', 'машин']).score > 0;
+    return transport ? 'road' : best(pdoc, K.place);
+  };
+  const explicit = parts.map(explicitPlace);
   const scenes = [];
   let place = null, tod = S.tod || 'day', wState = gWeather.filter((w) => w === 'snow' || w === 'fog'), who = null;
   parts.forEach((text, i) => {
@@ -131,12 +139,12 @@ function plan(T, S, seed) {
     /* «в шесть утра», «к десяти вечера» — это время, а не смена времени суток */
     const todDoc = PV.Text.prepare(text.replace(/(\d+|один|два|три|четыре|пять|шесть|семь|восемь|девять|десять|одиннадцать|двенадцать)\s+(утра|вечера|ночи|дня)/gi, ''));
     /* место ищем без темы разговора («о доме») и без направления («на работу», «в школу»), транспорт важнее цели */
-    const placeText = text.replace(/(^|\s)(о|об|обо|про)\s+[^\s,.;]+(\s+[^\s,.;]+)?/gi, ' ').replace(/(^|\s)(на|в|во|к)\s+(работу|учёбу|учебу|школу|университет|универ|офис|пары)(?=[\s,.;!?]|$)/gi, ' ');
-    const pdoc = PV.Text.prepare(placeText);
-    const transport = PV.Text.scan(pdoc, ['автобус', 'трамва', 'метро', 'такси', 'электрич', 'поезд', 'маршрутк', 'машин']).score > 0;
-    const p = transport ? 'road' : best(pdoc, K.place);
-    /* первая сцена без места не берёт место из следующих фраз: дом утром и ночью, город днём */
-    place = p || place || (i === 0 ? (['morning', 'night'].includes(tod) || PV.Text.scan(doc, ['проснул', 'позвон', 'звонил']).score ? 'home' : fallbackPlace) : fallbackPlace);
+    const p = explicit[i];
+    /* первая сцена без места: если она про пробуждение или звонок — дом; если следующая фраза сразу называет место
+       («Срочная сдача проекта. Ночь в офисе…») — то самое место; иначе дом утром и ночью, город днём */
+    const wakesHome = PV.Text.scan(doc, ['проснул', 'позвон', 'звонил', 'встал', 'встала']).score > 0;
+    const ahead = i === 0 && !wakesHome ? explicit.slice(1, 2).find(Boolean) : null;
+    place = p || place || (i === 0 ? (wakesHome ? 'home' : ahead || (['morning', 'night'].includes(tod) ? 'home' : fallbackPlace)) : fallbackPlace);
     const t = best(todDoc, K.tod); if (t) tod = t;
     const objs = all(doc, K.obj);
     /* погода начинается с момента, когда о ней сказано, и держится дальше; снег и туман — на весь день */

@@ -52,7 +52,7 @@ function setGlow(sum, mode) {
   root.classList.toggle('after', mode === 'after');
 }
 let toastT = 0;
-function toast(msg, ms = 4200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
+function toast(msg, ms = 4200) { const t = $('#toast'); t.textContent = msg; t.hidden = false; t.onclick = () => { t.hidden = true; }; clearTimeout(toastT); toastT = setTimeout(() => { t.hidden = true; }, ms); }
 async function download(blob, name) {
   if (IN_ARTIFACT) {
     if (!dlNS) { toast('Скачивание в этом окне недоступно. Откройте дневник как обычную страницу (index.html).', 6000); return false; }
@@ -80,12 +80,13 @@ function go(view) {
   state.view = view;
   $('#toast').hidden = true; clearTimeout(toastT);
   document.documentElement.dataset.view = view;
-  for (const v of ['archive', 'new', 'day', 'about']) $('#v-' + v).hidden = v !== view;
+  for (const v of ['archive', 'new', 'day', 'insta', 'about']) $('#v-' + v).hidden = v !== view;
   $$('.nav, .tab').forEach((b) => b.classList.toggle('on', !!b.dataset.go && b.dataset.go === view));
   if (view !== 'day' && state.day) setGlow(state.day.summary, 'after');
   if (view === 'archive') renderArchive();
   if (view === 'new') { if (!state.form) resetForm(); }
   if (view === 'about') renderAbout();
+  if (view === 'insta' && PV.Moments) PV.Moments.show();
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
 
@@ -107,7 +108,8 @@ async function renderArchive() {
   $('#arch-count').textContent = n ? `${n} ${U.plural(n, 'день', 'дня', 'дней')} · ${regs} ${U.plural(regs, 'настроение', 'настроения', 'настроений')}` : '';
   $('#arch-empty').hidden = n > 0;
   $('#arch-mode').hidden = n === 0;
-  $('#arch-hello').hidden = !state.days.some((d) => d.demo);
+  let helloDone = false; try { helloDone = localStorage.getItem('pv-hello-done') === '1'; } catch (e) { /* без хранилища */ }
+  $('#arch-hello').hidden = helloDone || !state.days.some((d) => d.demo) || state.days.some((d) => !d.demo && !d.sample);
   if (!state.day && n) setGlow(state.days[state.days.length - 1].summary, 'after');
   /* цвета дневника: каждый день — полоска из его собственной палитры, по порядку дат */
   const strip = $('#arch-strip');
@@ -125,7 +127,7 @@ async function renderArchive() {
     const rot = ((((d.seed || 0) % 9) + 9) % 9 - 4) * 0.28;
     b.style.cssText = `--rot:${rot.toFixed(2)}deg;--i:${Math.min(i, 12)}`;
     b.innerHTML = `<div class="cover" style="--accent:${U.hex(reg.color)}"><span class="tab"></span>${d.cover ? `<img class="c" alt="" src="${objURL(d.cover)}">` : `<span class="nocover">${esc(reg.short)}</span>`}<span class="glare"></span></div>
-      <div class="cap"><div class="t">${esc(d.title)}</div><div class="m"><img alt="" src="${sealIcon(d)}">${esc(U.dateLong(d.date))} · ${esc(reg.short)}</div></div>`;
+      <div class="cap"><div class="t">${d.sample ? '<span class="badge">пример</span> ' : ''}${esc(d.title)}</div><div class="m"><img alt="" src="${sealIcon(d)}">${esc(U.dateLong(d.date))} · ${esc(reg.short)}</div></div>`;
     b.onclick = () => openDayById(d.id);
     grid.appendChild(b);
   });
@@ -277,7 +279,8 @@ async function pickSong(i) {
 function setSongMode(m) {
   state.form.song.mode = m;
   $$('#f-song-mode button').forEach((b) => b.classList.toggle('on', b.dataset.m === m));
-  $('#f-song-file').hidden = m !== 'file'; $('#f-song-link').hidden = m !== 'link'; $('#f-song-search').hidden = m !== 'search';
+  $('#f-song-file').hidden = m !== 'file'; $('#f-song-link').hidden = m !== 'link'; $('#f-song-search').hidden = m !== 'search'; $('#f-song-none').hidden = m !== 'none';
+  $('#f-song-card .pair').hidden = m === 'none';
   if (m !== 'search') stopPreview();
   validate();
 }
@@ -360,7 +363,7 @@ function showAnalysis() {
   const A = state.form.song.A;
   if (!A) return;
   const loud = A.loud > 0.6 ? 'громкая' : A.loud < 0.35 ? 'тихая' : 'средняя громкость';
-  $('#f-audio-info').textContent = `${Math.round(A.bpm)} BPM · ${A.modeConf >= 0.5 ? A.keyName + " (оценка)" : "лад неоднозначен"} · ${loud} · ${U.fmtTime(A.duration)}`;
+  $('#f-audio-info').textContent = `${A.bpmConf != null && A.bpmConf < 0.4 ? '≈' : ''}${Math.round(A.bpm)} BPM · ${PV.Mood.keyShown(A) ? PV.Mood.keyShown(A) + ' (оценка)' : 'лад неоднозначен'} · ${loud} · ${U.fmtTime(A.duration)}`;
   $('#f-ex-label').textContent = `Фрагмент для воспоминания: с ${U.fmtTime(A.start)}. В дневник сохраняется только он, а не песня целиком. Передвиньте, если любимое место в другом.`;
 }
 function drawWave() {
@@ -413,7 +416,7 @@ function validate() {
   const need = [];
   if ($('#f-text').value.trim().length < 10) need.push('пара предложений о дне');
   if (!f.photos.length) need.push('хотя бы одно фото');
-  const songOk = hasAudio(f.song.mode) ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
+  const songOk = f.song.mode === 'none' ? true : hasAudio(f.song.mode) ? !!f.song.A : !!(f.song.link || $('#f-artist').value.trim() || $('#f-title').value.trim());
   if (!songOk) need.push(f.song.mode === 'search' ? 'песня (найдите и выберите)' : f.song.mode === 'file' ? 'аудиофайл песни' : 'ссылка или название песни');
   const ar = $('#f-artist').value.trim(), ti = $('#f-title').value.trim();
   const fileLike = !ar && /^[\w .()-]+$/.test(ti) && /\d/.test(ti);
@@ -473,51 +476,81 @@ function summaryOf(S) {
 }
 async function nextNumber() { const all = await PV.Store.all(); return all.reduce((m, d) => Math.max(m, d.number || 0), 0) + 1; }
 
+/* данные формы → входные данные дня (тот же путь используют дни из Instagram) */
+function formInput() {
+  const f = state.form;
+  return { date: $('#f-date').value || U.today(), text: $('#f-text').value.trim(), photos: f.photos, song: f.song, meta: songMeta(), weather: f.weather, source: f.source || null };
+}
+/* без песни: ритм дня по снимкам — темп и характер выводятся из света, тепла и числа кадров */
+function photoSong(P, n) {
+  const d = PV.Insta.songFromPhotos(P, n);
+  return PV.Audio.describe({ tempo: d.tempo, mood: d.mood });
+}
+async function composeDay(inp, progress = () => {}) {
+  const date = inp.date || U.today(), text = inp.text, song = inp.song, meta = inp.meta;
+  const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  const seed = U.hash(id + text);
+  const T = PV.Text.analyze(text, date);
+  applyWeather(T, inp.weather);
+  progress('Смотрю на свет и цвет фото…', 0.12); await U.frame();
+  const P = PV.Img.mergePhotos(inp.photos.map((p) => p.a), seed);
+  progress('Слушаю песню…', 0.2); await U.frame();
+  const audio = hasAudio(song.mode) && song.A;
+  let M, track, ex = null;
+  if (audio) M = { ...stripPriv(song.A), genre: meta.genre, year: meta.year };
+  else if (song.mode === 'none') M = photoSong(P, inp.photos.length);
+  else {
+    const D = song.describe;
+    M = PV.Audio.describe({ tempo: D.tempo || meta.tempo, mood: D.mood || meta.mood, genre: D.genre || meta.genre, year: meta.year });
+  }
+  const label = song.mode === 'none' ? 'без песни · ритм по снимкам' : meta.label;
+  const S = PV.Mood.buildStyle({ text: T, photos: P, music: M, seed });
+  const titles = PV.Title.make(T, { tod: S.tod, season: S.season, register: S.register, seed });
+  const dur = estimateDuration(S, T, inp.photos.length);
+  if (audio) {
+    const A = song.A;
+    ex = PV.Audio.makeExcerpt(song.loaded, A.start, Math.min(A.duration - A.start, dur + 1.5));
+    const fin = PV.Audio.finalizeExcerpt(A, ex.t0, ex.dur);
+    track = { ...fin, bpm: M.bpm, keyName: PV.Mood.keyShown(M), label, dur: ex.dur };
+  } else {
+    track = { env: M.env, envRate: M.envRate, beats: M.beats, beatStrength: M.beatStrength, bpm: M.bpm, keyName: null, label, dur: 45 };
+  }
+  const Mstore = stripPriv(M); delete Mstore.env; delete Mstore.beats; delete Mstore.beatStrength;
+  return {
+    id, seed, version: 1, createdAt: Date.now(), date, number: await nextNumber(), text,
+    title: titles[0].s, titlePattern: titles[0].pattern, titleIdx: 0,
+    photos: inp.photos.map((p) => ({ blob: p.blob, w: p.w, h: p.h, a: p.a })),
+    song: {
+      mode: song.mode, artist: meta.artist, title: meta.title, year: meta.year, label,
+      url: song.mode !== 'file' && song.mode !== 'none' ? song.url : null, service: song.mode === 'search' ? (song.service || null) : null, link: song.mode === 'link' ? song.link : null, describe: song.describe,
+      excerpt: ex ? ex.blob : null, excerptExt: ex ? ex.ext : null, excerptStart: ex ? ex.t0 : null, excerptDur: ex ? ex.dur : null,
+      fileName: song.loaded ? song.loaded.file.name : null,
+    },
+    analysis: { T, P, M: Mstore }, weather: inp.weather || null, overrides: {}, track, voice: null, video: null,
+    source: inp.source || null,
+  };
+}
+/* день, собранный без открытия (пакетная сборка из Instagram): обложка и сводка для архива */
+async function saveDayQuiet(day) {
+  const S = styleFor(day);
+  const R = await makeRenderer(day, S, 0.3, 'preview');
+  day.cover = await coverBlob(R);
+  day.summary = summaryOf(S);
+  await PV.Store.put(day);
+  return day;
+}
 async function buildDay() {
-  const f = state.form, date = $('#f-date').value || U.today(), text = $('#f-text').value.trim();
+  const f = state.form;
   $('#busy').classList.add('build');
   busy(true, 'Читаю запись…', 0.04);
   try {
     await U.frame();
-    const id = 'd' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-    const seed = U.hash(id + text);
-    const T = PV.Text.analyze(text, date);
-    applyWeather(T, f.weather);
-    busy(true, 'Смотрю на свет и цвет фото…', 0.12); await U.frame();
-    const P = PV.Img.mergePhotos(f.photos.map((p) => p.a), seed);
-    busy(true, 'Слушаю песню…', 0.2); await U.frame();
-    const meta = songMeta();
-    let M, track, ex = null;
-    if (hasAudio(f.song.mode) && f.song.A) {
-      M = { ...stripPriv(f.song.A), genre: meta.genre, year: meta.year };
-    } else {
-      const D = f.song.describe;
-      M = PV.Audio.describe({ tempo: D.tempo || meta.tempo, mood: D.mood || meta.mood, genre: D.genre || meta.genre, year: meta.year });
+    const day = await composeDay(formInput(), (t, p) => busy(true, t, p));
+    /* пример не копится: новый пример заменяет предыдущий, в архиве он помечен «пример» */
+    if (f.fromSample) {
+      day.sample = true;
+      for (const old of await PV.Store.all()) if (old.sample) await PV.Store.remove(old.id);
     }
-    const S = PV.Mood.buildStyle({ text: T, photos: P, music: M, seed });
-    const titles = PV.Title.make(T, { tod: S.tod, season: S.season, register: S.register, seed });
-    const dur = estimateDuration(S, T, f.photos.length);
-    if (hasAudio(f.song.mode) && f.song.A) {
-      const A = f.song.A;
-      ex = PV.Audio.makeExcerpt(f.song.loaded, A.start, Math.min(A.duration - A.start, dur + 1.5));
-      const fin = PV.Audio.finalizeExcerpt(A, ex.t0, ex.dur);
-      track = { ...fin, bpm: M.bpm, keyName: (M.modeConf ?? 1) >= 0.5 ? M.keyName : null, label: meta.label, dur: ex.dur };
-    } else {
-      track = { env: M.env, envRate: M.envRate, beats: M.beats, beatStrength: M.beatStrength, bpm: M.bpm, keyName: null, label: meta.label, dur: 45 };
-    }
-    const Mstore = stripPriv(M); delete Mstore.env; delete Mstore.beats; delete Mstore.beatStrength;
-    const day = {
-      id, seed, version: 1, createdAt: Date.now(), date, number: await nextNumber(), text,
-      title: titles[0].s, titlePattern: titles[0].pattern, titleIdx: 0,
-      photos: f.photos.map((p) => ({ blob: p.blob, w: p.w, h: p.h, a: p.a })),
-      song: {
-        mode: f.song.mode, artist: meta.artist, title: meta.title, year: meta.year, label: meta.label,
-        url: f.song.mode !== 'file' ? f.song.url : null, service: f.song.mode === 'search' ? (f.song.service || null) : null, link: f.song.mode === 'link' ? f.song.link : null, describe: f.song.describe,
-        excerpt: ex ? ex.blob : null, excerptExt: ex ? ex.ext : null, excerptStart: ex ? ex.t0 : null, excerptDur: ex ? ex.dur : null,
-        fileName: f.song.loaded ? f.song.loaded.file.name : null,
-      },
-      analysis: { T, P, M: Mstore }, weather: f.weather, overrides: {}, track, voice: null, video: null,
-    };
     await openDay(day, { fresh: true, onProgress: (p) => busy(true, 'Рисую страницу дня…', 0.3 + 0.65 * p) });
     state.form = null;
     toast(`День сохранён в папку «${day.title}»`);
@@ -528,6 +561,7 @@ async function buildDay() {
 }
 
 /* ---------- страница дня ---------- */
+function fitTitle() { const t = $('#d-title'); t.style.height = 'auto'; t.style.height = t.scrollHeight + 'px'; }
 function previewScale() {
   const h = Math.min(window.innerHeight * 0.78, 900), dpr = Math.min(2, window.devicePixelRatio || 1);
   return U.clamp((h * dpr) / 1920, 0.42, 0.75);
@@ -569,7 +603,7 @@ async function makeRenderer(day, S, scale, quality, onProgress) {
   }
   const R = new PV.Render.Renderer({
     style: S, text: day.analysis.T, title: day.title, date: day.date, number: day.number,
-    photos, captions, music: { ...day.track },
+    photos, captions, music: { ...day.track, bpmApprox: !!(day.analysis.M && day.analysis.M.source === 'audio' && day.analysis.M.bpmConf != null && day.analysis.M.bpmConf < 0.4), keyName: day.analysis.M && day.analysis.M.source === 'audio' ? PV.Mood.keyShown(day.analysis.M) : null },
   }, { scale, quality });
   await R.prepare(onProgress);
   return R;
@@ -627,16 +661,16 @@ const AX = [
 ];
 function fillPanel(day, S) {
   const REG = PV.Mood.REG[S.register];
-  $('#d-title').value = day.title;
+  $('#d-title').value = day.title; fitTitle();
   const w = day.weather ? ` · погода: ${day.weather.label}, до ${Math.round(day.weather.tmax)} °C` : '';
   $('#d-meta').textContent = `${U.dateLong(day.date)}, ${U.weekday(day.date)} · № ${String(day.number).padStart(3, '0')} · ♪ ${day.song.label}${w}`;
   $('#d-reg').innerHTML = `<div class="sw" style="background:${U.hex(REG.color)}"></div><div><b>Режим «${esc(REG.name)}»</b><p>${esc(U.cap(REG.mood))}. ${esc(REG.why)}</p></div>`;
   $('#d-axes').innerHTML = AX.map(([k, name, lo, hi]) => `<div class="axis"><span>${name}</span><div><div class="track"><i style="width:${Math.round(S.mood[k] * 100)}%"></i></div><div class="ends"><span>${lo}</span><span>${hi}</span></div></div></div>`).join('');
-  $('#d-tune-rows').innerHTML = AX.slice(0, 4).map(([k, name]) => `<div class="tune-row"><span>${name}</span><input type="range" min="0" max="100" value="${Math.round(S.mood[k] * 100)}" data-k="${k}"><span class="muted" data-v="${k}">${day.overrides[k] != null ? 'вручную' : 'авто'}</span></div>`).join('');
+  $('#d-tune-rows').innerHTML = AX.slice(0, 4).map(([k, name]) => `<div class="tune-row"><span id="tl-${k}">${name}</span><input type="range" min="0" max="100" value="${Math.round(S.mood[k] * 100)}" data-k="${k}" aria-labelledby="tl-${k}" aria-valuetext="${name}: ${Math.round(S.mood[k] * 100)}%"><span class="muted" data-v="${k}">${day.overrides[k] != null ? 'вручную' : 'авто'}</span></div>`).join('');
   $$('#d-tune-rows input').forEach((inp) => { inp.oninput = () => { $(`[data-v="${inp.dataset.k}"]`).textContent = 'вручную'; retune(); }; });
   const lines = PV.Mood.explain({ text: day.analysis.T, photos: day.analysis.P, music: day.analysis.M }, S);
   if (visualOf(day) !== 'photos' && state.scenes && state.scenes.length) {
-    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${sc.own ? 'ваше фото' : PV.Scene.describe(sc)}`).join('; ') + (visualOf(day) === 'mix' ? '. Ваши снимки чередуются со сценами, дорисованными по словам записи; палитра и свет — из снимков.' : '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.') });
+    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => (sc.caption ? `${i + 1}) «${sc.caption}» → ${sc.own ? 'ваше фото' : PV.Scene.describe(sc)}` : `${i + 1}) ${sc.own ? 'ваше фото без подписи' : PV.Scene.describe(sc) + ' без подписи'}`)).join('; ') + (visualOf(day) === 'mix' ? '. Ваши снимки чередуются со сценами, дорисованными по словам записи; палитра и свет — из снимков.' : '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.') });
   }
   lines.push({ k: 'Название', t: `${day.titlePattern || 'по правилам'} — 3–7 слов, как подпись на обороте фотографии, без глаголов и эмоций «в лоб».` });
   $('#d-why').innerHTML = lines.map((l) => `<li><b>${esc(l.k)}</b>${esc(l.t)}</li>`).join('');
@@ -646,27 +680,27 @@ function fillPanel(day, S) {
   emb.innerHTML = '';
   if (day.song.link && day.song.link.embed && !IN_ARTIFACT) {
     emb.innerHTML = `<div class="muted small" style="margin-top:12px">Песня по ссылке (${esc(day.song.link.service)}): включите её здесь — кадры сменяются в её темпе.</div><iframe loading="lazy" allow="autoplay; encrypted-media" height="${day.song.link.height || 200}" src="${esc(day.song.link.embed)}"></iframe>`;
-  } else if (day.song.url) emb.innerHTML = `<p class="small"><a href="${esc(day.song.url)}" target="_blank" rel="noopener">Открыть песню дня</a></p>`;
+  } else if (day.song.url && /^https?:\/\//i.test(day.song.url)) emb.innerHTML = `<p class="small"><a href="${esc(day.song.url)}" target="_blank" rel="noopener">Открыть песню дня</a></p>`;
   renderFiles(day, S);
 }
 function folderFiles(day, S) {
   const base = U.safeName(day.title), files = [];
   const lines = PV.Mood.explain({ text: day.analysis.T, photos: day.analysis.P, music: day.analysis.M }, S);
   if (visualOf(day) !== 'photos' && state.scenes && state.scenes.length) {
-    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => `${i + 1}) «${sc.caption || '…'}» → ${sc.own ? 'ваше фото' : PV.Scene.describe(sc)}`).join('; ') + (visualOf(day) === 'mix' ? '. Ваши снимки чередуются со сценами, дорисованными по словам записи; палитра и свет — из снимков.' : '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.') });
+    lines.splice(1, 0, { k: 'Сцены из текста', t: state.scenes.map((sc, i) => (sc.caption ? `${i + 1}) «${sc.caption}» → ${sc.own ? 'ваше фото' : PV.Scene.describe(sc)}` : `${i + 1}) ${sc.own ? 'ваше фото без подписи' : PV.Scene.describe(sc) + ' без подписи'}`)).join('; ') + (visualOf(day) === 'mix' ? '. Ваши снимки чередуются со сценами, дорисованными по словам записи; палитра и свет — из снимков.' : '. Ваши фото — референс: из них взяты палитра и свет, сами сцены дорисованы по словам записи.') });
   }
   files.push({ name: 'запись.txt', data: `${U.dateLong(day.date)}, ${U.weekday(day.date)}\n\n${day.text}\n` });
   day.photos.forEach((p, i) => files.push({ name: `фото-${String(i + 1).padStart(2, '0')}.jpg`, data: p.blob }));
   const streamed = !!day.song.service; /* превью сервисов разрешено только слушать, не раздавать файлом */
   if (day.song.excerpt && !streamed) files.push({ name: `песня-фрагмент.${day.song.excerptExt}`, data: day.song.excerpt });
   const M = day.analysis.M;
-  files.push({ name: 'песня.txt', data: [`Песня: ${day.song.label}`, day.song.url ? `Ссылка: ${day.song.url}` : '', day.song.excerpt ? (streamed ? `Фрагмент из ${day.song.service} в папку не кладём: сервис разрешает только слушать превью. Послушать — по ссылке выше.` : `Фрагмент: с ${U.fmtTime(day.song.excerptStart)}, ${Math.round(day.song.excerptDur)} с (песня целиком не хранится)`) : '', `Темп: ${Math.round(M.bpm)} BPM${M.keyName ? ', ' + M.keyName : ''}${M.source === 'described' ? ' (по описанию)' : ''}`].filter(Boolean).join('\n') + '\n' });
+  files.push({ name: 'песня.txt', data: [`Песня: ${day.song.label}`, day.song.url ? `Ссылка: ${day.song.url}` : '', day.song.excerpt ? (streamed ? `Фрагмент из ${day.song.service} в папку не кладём: сервис разрешает только слушать превью. Послушать — по ссылке выше.` : `Фрагмент: с ${U.fmtTime(day.song.excerptStart)}, ${Math.round(day.song.excerptDur)} с (песня целиком не хранится)`) : '', `Темп: ${Math.round(M.bpm)} BPM${PV.Mood.keyShown(M) ? ', ' + PV.Mood.keyShown(M) : ', лад неоднозначен'}${M.source === 'described' ? ' (по описанию)' : ''}`].filter(Boolean).join('\n') + '\n' });
   if (day.video) files.push({ name: `воспоминание.${day.video.ext}`, data: day.video.blob });
   if (day.cover) files.push({ name: 'обложка.jpg', data: day.cover });
   if (day.voice) files.push({ name: `озвучка.${day.voice.ext || 'webm'}`, data: day.voice.blob });
   files.push({ name: 'озвучка.txt', data: `Голос по правилам дня: ${PV.Voice.describe(S.voice)}.\n\n${day.text}\n` });
   files.push({ name: 'почему-так.txt', data: `«${day.title}»\nРежим: ${PV.Mood.REG[S.register].name}\n\n` + lines.map((l) => `• ${l.k}: ${l.t}`).join('\n') + '\n' });
-  files.push({ name: 'день.json', data: JSON.stringify({ title: day.title, date: day.date, number: day.number, register: S.register, mood: Object.fromEntries(['E', 'V', 'W', 'T', 'D', 'N'].map((k) => [k, +S.mood[k].toFixed(3)])), tod: S.tod, season: S.season, bpm: M.bpm, key: M.keyName || null, palette: S.palette.map(U.hex), overrides: day.overrides }, null, 2) });
+  files.push({ name: 'день.json', data: JSON.stringify({ title: day.title, date: day.date, number: day.number, register: S.register, mood: Object.fromEntries(['E', 'V', 'W', 'T', 'D', 'N'].map((k) => [k, +S.mood[k].toFixed(3)])), tod: S.tod, season: S.season, bpm: M.bpm, key: PV.Mood.keyShown(M), palette: S.palette.map(U.hex), overrides: day.overrides }, null, 2) });
   return { base, files };
 }
 function renderFiles(day, S) {
@@ -699,7 +733,7 @@ async function retitle() {
 async function applyTitle() {
   const day = state.day, R = state.renderer;
   R.day.title = day.title; R._title = null;
-  $('#d-title').value = day.title;
+  $('#d-title').value = day.title; fitTitle();
   day.cover = await coverBlob(R); day.video = null;
   await PV.Store.put(day);
   if (state.player) state.player.draw(state.player.t);
@@ -833,6 +867,13 @@ function renderAbout() {
     <div><b>3. Музыка</b>аудиоанализ в браузере: темп и доли, громкость, плотность атак, яркость звука, лад. По ссылке — по описанию.</div>
     <div><b>4. Страница</b>шесть осей настроения выбирают художественный режим и дозируют его. Каждое решение объяснено в «Почему день выглядит так».</div>
   </div>
+  <h3>Мгновения из Instagram</h3>
+  <div class="flow">
+    <div><b>Войти через Instagram</b>официальный вход, только чтение публикаций; для профессиональных аккаунтов. Токен хранится только на этом устройстве.</div>
+    <div><b>Архив Instagram</b>выгрузка «Скачать информацию» (JSON) разбирается прямо в браузере: посты, карусели, сторис, архив. Файл никуда не уходит.</div>
+    <div><b>Мгновения</b>моментальные снимки Instagram (с мая 2026) по API недоступны — снимки из галереи телефона раскладываются по дате съёмки из EXIF.</div>
+    <div><b>Черновик дня</b>до 8 снимков дня и запись по времени, подписям и свету — её стоит дописать: подписи не знают, как день ощущался.</div>
+  </div>
   <h3>Шесть художественных режимов</h3>
   <div class="regs">${PV.Mood.ORDER.map((k) => { const r = REG[k]; return `<div class="regcard" style="--c:${U.hex(r.color)}"><h3>${esc(r.name)}</h3><div class="when">${esc(r.mood)}</div><p>${esc(U.cap(r.technique))}.</p><p>${esc(r.why)}</p><p class="refs">Опоры: ${esc(r.refs)}</p></div>`; }).join('')}</div>
   <h3>Постоянное и переменное</h3>
@@ -855,7 +896,7 @@ function renderAbout() {
     <li><b>Голос озвучки:</b> темп 0,80–1,15 по энергии, высота по тону, паузы между фразами длиннее в спокойные дни, тембр ниже в тяжёлые и ночные.</li>
   </ul>
   <div class="note"><b>Послевкусие интерфейса.</b> Когда вы открываете день, сам дневник окрашивается в цвета его фотографий и акцент режима. Вы возвращаетесь в архив — а оттенок дня ещё держится в комнате, пока не откроете другой. Над архивом — «цвета дневника»: каждый день полоской из собственной палитры, по порядку дат.</div>
-  <div class="note">Всё хранится только в вашем браузере. Из песни сохраняется лишь фрагмент, который звучит в воспоминании. Оценка настроения — это подбор оформления, а не психологическая диагностика. Шрифты Lora, Montserrat и Anonymous Pro распространяются по лицензии SIL Open Font License. Внешние библиотеки не используются: Canvas 2D, Web Audio API, MediaRecorder, Web Speech API и IndexedDB встроены в браузер.</div>`;
+  <div class="note">Всё хранится только в вашем браузере. Из песни сохраняется лишь фрагмент, который звучит в воспоминании. Оценка настроения — это подбор оформления, а не психологическая диагностика. Шрифты Lora, Montserrat и Anonymous Pro распространяются по лицензии SIL Open Font License. Внешние библиотеки не используются: Canvas 2D, Web Audio API, MediaRecorder, Web Speech API и IndexedDB встроены в браузер. Демо-дни собраны из открытых фотографий и записей — авторы и лицензии: <a href="https://github.com/khaan011/hackaton-genezis/blob/main/docs/CREDITS.md" target="_blank" rel="noopener">docs/CREDITS.md</a>.</div>`;
 }
 
 /* ---------- запуск ---------- */
@@ -871,6 +912,9 @@ function bind() {
     try { const n = await importDiary(f); toast(`Импортировано: ${n} ${U.plural(n, 'день', 'дня', 'дней')}`); renderArchive(); } catch (err) { toast(err.message); } finally { busy(false); }
   };
   $('#f-text').oninput = () => { textHint(); validate(); };
+  /* на телефоне, пока печатаете, кнопка «Собрать» не закрывает поле */
+  $('#v-new').addEventListener('focusin', (e) => { if (/TEXTAREA|INPUT/.test(e.target.tagName) && e.target.type !== 'file') document.documentElement.classList.add('typing'); });
+  $('#v-new').addEventListener('focusout', () => document.documentElement.classList.remove('typing'));
   $('#f-date').onchange = () => textHint();
   $('#f-photos').onchange = (e) => { addPhotos(e.target.files); e.target.value = ''; };
   const drop = $('#f-drop');
@@ -879,7 +923,7 @@ function bind() {
   drop.addEventListener('drop', (e) => { e.preventDefault(); addPhotos(e.dataTransfer.files); });
   $$('#f-song-mode button').forEach((b) => { b.onclick = () => setSongMode(b.dataset.m); });
   $('#f-q').oninput = searchSongs;
-  $('#f-audio').onchange = (e) => { const f = e.target.files[0]; if (f) loadAudio(f); };
+  $('#f-audio').onchange = (e) => { const f = e.target.files[0]; if (f) { if (state.form.song.mode !== 'file') setSongMode('file'); loadAudio(f); } };
   $('#f-ex-start').oninput = () => { const A = state.form.song.A; if (A) { A.start = parseFloat($('#f-ex-start').value); drawWave(); } reanalyze(); };
   $('#f-url').oninput = () => {
     const link = PV.Audio.parseLink($('#f-url').value);
@@ -908,6 +952,8 @@ function bind() {
     if (!state.day || !(await askConfirm(`Удалить «${state.day.title}» из дневника? Это нельзя отменить.`, 'Удалить'))) return;
     await PV.Store.remove(state.day.id); state.day = null; go('archive');
   };
+  $('#d-title').oninput = fitTitle;
+  $('#d-title').onkeydown = (e) => { if (e.key === 'Enter') { e.preventDefault(); e.target.blur(); } };
   $('#d-title').onchange = async (e) => { const v = e.target.value.trim(); if (!v || !state.day) return; state.day.title = v.slice(0, 70); state.day.titlePattern = 'название изменено вручную'; await applyTitle(); };
   $('#d-retitle').onclick = retitle;
   $('#d-tune-reset').onclick = () => { if (!state.day) return; $$('#d-tune-rows [data-v]').forEach((s) => { s.textContent = 'авто'; }); state.day.overrides = {}; retune(); };
@@ -947,7 +993,9 @@ async function fillSample() {
   state.sampleIdx = ((state.sampleIdx == null ? Math.floor(Math.random() * days.length) : state.sampleIdx) + 1) % days.length;
   const d = days[state.sampleIdx];
   resetForm();
-  $('#f-date').value = U.today();
+  /* дата — та же, что у демо-дня: сезон в записи, на фото и в дате совпадает */
+  $('#f-date').value = d.date || U.today();
+  setSongMode('file');
   /* свой текст примера, чтобы не повторять демо-день один в один */
   const reg = (d.summary || {}).register;
   $('#f-text').value = SAMPLE_TEXT[reg] || d.text;
@@ -958,11 +1006,12 @@ async function fillSample() {
   if (year) $('#f-year').value = year;
   await addPhotos(d.photos.map((p, i) => new File([p.blob], `пример-${i + 1}.jpg`, { type: 'image/jpeg' })));
   await loadAudio(new File([d.song.excerpt], `пример.${d.song.excerptExt || 'mp3'}`, { type: d.song.excerpt.type || 'audio/mpeg' }));
+  state.form.fromSample = true;
   validate();
   toast('Пример заполнен. Поменяйте пару слов в записи — и посмотрите, как изменится день.', 6000);
 }
 
-/* ---------- экскурсия для жюри: главное за 40 секунд, по настоящему интерфейсу ---------- */
+/* ---------- экскурсия для жюри: главное за минуту, по настоящему интерфейсу ---------- */
 const sleep = (ms) => new Promise((r) => setTimeout(r, ms));
 const tour = { on: false, i: 0, timer: 0, wake: null };
 function spot(sel) {
@@ -995,8 +1044,10 @@ const TOUR = [
     run: async () => { stopDay(); $('#d-tune').open = true; spot('#d-tune'); } },
   { t: 'Лента: все дни рядом. Разные настроения — одна визуальная система.', ms: 6000,
     run: async () => { $('#d-tune').open = false; go('archive'); await sleep(300); const b = $('#arch-mode [data-mode="feed"]'); if (b) b.click(); spot('#arch-feed'); } },
+  { t: 'Instagram: войдите, пришлите архив или мгновения — новые моментальные снимки Instagram. Дневник сам разложит их по дням и напишет черновик записи.', ms: 8000,
+    run: async () => { const b = $('#arch-mode [data-mode="folders"]'); if (b) b.click(); go('insta'); await sleep(300); spot('.ig-ways'); } },
   { t: 'Ваша очередь: нажмите «Попробовать на примере» или запишите свой день.', ms: 8000,
-    run: async () => { const b = $('#arch-mode [data-mode="folders"]'); if (b) b.click(); go('new'); await sleep(300); spot('#f-sample'); } },
+    run: async () => { go('new'); await sleep(300); spot('#f-sample'); } },
 ];
 async function tourStep(i) {
   clearTimeout(tour.timer);
@@ -1017,6 +1068,7 @@ function startTour() {
   tourStep(0);
 }
 function endTour() {
+  try { localStorage.setItem('pv-hello-done', '1'); } catch (e) { /* без хранилища */ }
   tour.on = false; clearTimeout(tour.timer);
   $('#tour').hidden = true; document.documentElement.classList.remove('touring');
   $$('.spot').forEach((e) => e.classList.remove('spot'));
@@ -1096,7 +1148,9 @@ async function init() {
     busy(true, b.dataset.v === 'photos' ? 'Собираю из ваших фото…' : b.dataset.v === 'mix' ? 'Чередую ваши фото и сцены…' : 'Дорисовываю сцены по записи…', 0.2);
     try { await openDay(day, { fresh: true, onProgress: (p) => busy(true, null, 0.2 + 0.75 * p) }); } finally { busy(false); }
   }; });
-  go('archive');
+  /* после входа через Instagram — сразу на экран мгновений */
+  go((PV.Moments && PV.Moments.state.want) || 'archive');
+  state.ready = true;
   /* демо-дневник грузится в фоне и не уводит человека с экрана, который он уже открыл */
   if (!days.length && location.protocol.startsWith('http')) {
     try {
@@ -1110,6 +1164,6 @@ async function init() {
   }
 }
 
-PV.App = { IN_ARTIFACT, state, go, startTour, endTour, fillSample, openDayById, importDiary, exportDiary, buildDay, addPhotos, loadAudio };
+PV.App = { IN_ARTIFACT, state, go, toast, renderThumbs, busy, askConfirm, download, renderArchive, resetForm, setSongMode, validate, textHint, startTour, endTour, fillSample, openDayById, importDiary, exportDiary, buildDay, composeDay, saveDayQuiet, addPhotos, loadAudio, songMeta };
 document.addEventListener('DOMContentLoaded', init);
 })();

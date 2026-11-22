@@ -35,6 +35,9 @@ const hann = (N) => { if (HANN[N]) return HANN[N]; const w = new Float32Array(N)
 const MAJ = [6.35, 2.23, 3.48, 2.33, 4.38, 4.09, 2.52, 5.19, 2.39, 3.66, 2.29, 2.88];
 const MIN = [6.33, 2.68, 3.52, 5.38, 2.60, 3.53, 2.54, 4.75, 3.98, 2.69, 3.34, 3.17];
 const NOTE_RU = ['до', 'до-диез', 'ре', 'ми-бемоль', 'ми', 'фа', 'фа-диез', 'соль', 'ля-бемоль', 'ля', 'си-бемоль', 'си'];
+/* как принято называть: ре-бемоль мажор, но до-диез минор; ля-бемоль мажор, но соль-диез минор */
+const NOTE_MAJ = ['до', 'ре-бемоль', 'ре', 'ми-бемоль', 'ми', 'фа', 'фа-диез', 'соль', 'ля-бемоль', 'ля', 'си-бемоль', 'си'];
+const NOTE_MIN = ['до', 'до-диез', 'ре', 'ми-бемоль', 'ми', 'фа', 'фа-диез', 'соль', 'соль-диез', 'ля', 'си-бемоль', 'си'];
 
 function pearson(a, b) {
   const n = a.length; let ma = 0, mb = 0;
@@ -201,16 +204,22 @@ function detectKey(ch) {
   }
   cand.sort((a, b) => b.score - a.score);
   const best = cand[0];
+  /* параллельная тональность (общий звукоряд) проверяется явно, а не только когда она — ближайший соперник:
+     иначе ноктюрн си-бемоль минор уверенно становится ре-бемоль мажором */
+  const relOf = (c) => (c.mode === 'major' ? U.mod(c.tonic + 9, 12) : U.mod(c.tonic + 3, 12));
+
   const rival = cand.find((c) => c.mode !== best.mode);
-  let conf = U.clamp((best.score - rival.score) / 0.12);
-  /* параллельная тональность (общий звукоряд) — честно снижаем уверенность */
-  const rel = best.mode === 'major' ? U.mod(best.tonic + 9, 12) : U.mod(best.tonic + 3, 12);
-  if (rival.tonic === rel) conf = Math.min(conf, bass[best.tonic] - bass[rel] > 0.08 ? 0.75 : 0.45);
+  let conf = U.clamp(Math.abs(best.score - rival.score) / 0.12);
+  /* параллельная тональность (общий звукоряд) близко — честно снижаем уверенность */
+  const rel = relOf(best), relBest = cand.find((c) => c.mode !== best.mode && c.tonic === rel);
+  /* общий звукоряд: чем ближе параллельная тональность, тем ниже уверенность — даже если она не ближайший соперник */
+  if (relBest) conf = Math.min(conf, U.clamp((best.score - relBest.score) / 0.3));
+  if (relBest && (rival === relBest || Math.abs(best.score - relBest.score) < 0.1)) conf = Math.min(conf, bass[best.tonic] - bass[rel] > 0.08 ? 0.75 : 0.45);
   /* тоника под вопросом, если соседняя по квинте тональность почти так же вероятна */
   const twin = cand.find((c) => c.mode === best.mode && c.tonic !== best.tonic);
   if (twin && best.score - twin.score < 0.1) conf = Math.min(conf, 0.45);
   const { mode, tonic } = best;
-  return { mode, tonic, modeConf: conf, keyName: `${NOTE_RU[tonic]} ${mode === 'major' ? 'мажор' : 'минор'}`, keyCorr: best.corr };
+  return { mode, tonic, modeConf: conf, keyName: `${(mode === 'major' ? NOTE_MAJ : NOTE_MIN)[tonic]} ${mode === 'major' ? 'мажор' : 'минор'}`, keyCorr: best.corr };
 }
 
 function percentile(arr, p) { const a = Array.from(arr).sort((x, y) => x - y); return a.length ? a[Math.min(a.length - 1, Math.floor(p * a.length))] : 0; }

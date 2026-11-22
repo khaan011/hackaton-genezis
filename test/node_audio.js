@@ -18,7 +18,12 @@ function readWav(file) {
 
 const dir = path.join(__dirname, 'assets/music');
 let keysRight = 0;
-if (!fs.existsSync(dir)) { console.log('Нет test/assets/music — сначала: cd test && python3 gen_music.py'); process.exit(0); }
+if (!fs.existsSync(dir)) {
+  /* без песен проверка не «проходит молча»: в CI (или с STRICT=1) это ошибка, локально — явный пропуск */
+  const strict = process.env.CI || process.env.STRICT;
+  console.log(`\n${strict ? '✗ ОШИБКА' : '⚠ ПРОПУЩЕНО'}: аудиоанализ не проверен — нет test/assets/music. Сгенерируйте песни: npm run assets (нужны python3, numpy, ffmpeg).`);
+  process.exit(strict ? 1 : 0);
+}
 for (const f of fs.readdirSync(dir).filter((x) => x.endsWith('.wav')).sort()) {
   const { chs, sr } = readWav(path.join(dir, f));
   const t = Date.now();

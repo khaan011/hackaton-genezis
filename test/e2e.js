@@ -6,13 +6,23 @@ const A = (p) => path.join(__dirname, 'assets', p);
 const OUT = path.join(__dirname, 'out');
 fs.mkdirSync(OUT, { recursive: true });
 
-const DAYS = [
-  { key: 'monet', date: '2026-10-18', text: 'Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао из термоса и долго разговаривали на скамейке.', photos: ['autumn_park', 'autumn_leaves', 'cocoa'], song: 'ballad_C_major_72', artist: 'Тестовый синтез', title: 'Какао на скамейке' },
-  { key: 'kandinsky', date: '2026-11-12', text: 'Срочная сдача проекта. Ночь в офисе, в наушниках электронная музыка, кофе остыл, код не собирается. Дедлайн в шесть утра.', photos: ['office_window', 'laptop_night'], song: 'techno_A_minor_128', artist: 'Тестовый синтез', title: 'Ночной билд' },
-  { key: 'ma', date: '2026-01-14', text: 'Проснулась рано, одна. За окном снег и туман, тишина. Долго смотрела, как медленно падает снег, и ничего не делала.', photos: ['winter_field', 'frost_window'], song: 'ambient_D_minor_60', artist: 'Тестовый синтез', title: 'Снег за окном' },
-  { key: 'film', date: '2026-07-18', text: 'Поехали с друзьями на дачу, как в детстве. Купались в реке, жгли костёр до темноты, слушали старые песни на кассетах. Вспомнили школу и смеялись.', photos: ['dacha_house', 'river_sunset', 'campfire'], song: 'folk_G_major_96', artist: 'Тестовый синтез', title: 'Летняя песня', year: '1978' },
-  { key: 'matisse', date: '2026-05-03', text: 'День рождения подруги! Шарики, торт со свечами, все смеялись и танцевали до ночи, было очень весело и шумно.', photos: ['balloons', 'cake', 'party'], song: 'pop_D_major_120', artist: 'Тестовый синтез', title: 'Шарики и свечи' },
-  { key: 'nocturne', date: '2026-09-28', text: 'Долгий тяжёлый день. Вечером шёл дождь, я шла домой одна, фонари расплывались в лужах. Было грустно, но спокойно.', photos: ['rain_street', 'rain_window'], song: 'rain_E_minor_66', artist: 'Тестовый синтез', title: 'Фонари в лужах' },
+/* демо-дни: настоящие фотографии (CC0 / CC BY, Openverse) и настоящие записи (общественное достояние / CC) — авторы в docs/CREDITS.md;
+   без ассетов (test/assets/real) — синтезированные из gen_photos.py и gen_music.py */
+const REAL = fs.existsSync(A('real/music'));
+const DAYS = REAL ? [
+  { key: 'monet', date: '2026-10-18', text: 'Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао из термоса и долго разговаривали на скамейке.', photos: ['real/autumn_path', 'real/autumn_leaves', 'real/cocoa'], song: 'real/music/satie', artist: 'Эрик Сати', title: 'Гимнопедия № 1' },
+  { key: 'kandinsky', date: '2026-11-12', text: 'Срочная сдача проекта. Ночь в офисе, в наушниках электронная музыка, кофе остыл, код не собирается. Дедлайн в шесть утра.', photos: ['real/office_night', 'real/keyboard_glow', 'real/keyboard_rgb'], song: 'real/music/street', artist: 'Timecrawler 82', title: 'Street Dancing' },
+  { key: 'ma', date: '2026-01-14', text: 'Проснулась рано, одна. За окном снег и туман, тишина. Долго смотрела, как медленно падает снег, и ничего не делала.', photos: ['real/snow_window', 'real/snow_trees', 'real/snow_blue'], song: 'real/music/prelude', artist: 'Фредерик Шопен', title: 'Прелюдия ми минор, op. 28 № 4' },
+  { key: 'film', date: '2026-07-18', text: 'Поехали с друзьями на дачу, как в детстве. Купались в реке, жгли костёр до темноты, слушали старые песни на кассетах. Вспомнили школу и смеялись.', photos: ['real/dacha_house', 'real/river_sunset', 'real/campfire'], song: 'real/music/sandman', artist: 'Isham Jones Rainbo Orchestra', title: 'Japanese Sandman', year: '1920' },
+  { key: 'matisse', date: '2026-05-03', text: 'День рождения подруги! Шарики, торт со свечами, все смеялись и танцевали до ночи, было очень весело и шумно.', photos: ['real/balloons', 'real/cake_candles', 'real/balloons_close'], song: 'real/music/dance', artist: 'Soft and Furious', title: 'Dance Like Crazy' },
+  { key: 'nocturne', date: '2026-09-28', text: 'Долгий тяжёлый день. Вечером шёл дождь, я шла домой одна, фонари расплывались в лужах. Было грустно, но спокойно.', photos: ['real/umbrella_rain', 'real/rain_window', 'real/night_street'], song: 'real/music/nocturne', artist: 'Фредерик Шопен', title: 'Ноктюрн op. 9 № 1' },
+] : [
+  { key: 'monet', date: '2026-10-18', text: 'Гуляли по парку, всё в жёлтых листьях. Было холодно, но мы пили какао из термоса и долго разговаривали на скамейке.', photos: ['autumn_park', 'autumn_leaves', 'cocoa'], song: 'ballad_C_major_72', artist: 'Синтез для проверки', title: 'Какао на скамейке' },
+  { key: 'kandinsky', date: '2026-11-12', text: 'Срочная сдача проекта. Ночь в офисе, в наушниках электронная музыка, кофе остыл, код не собирается. Дедлайн в шесть утра.', photos: ['office_window', 'laptop_night'], song: 'techno_A_minor_128', artist: 'Синтез для проверки', title: 'Ночной билд' },
+  { key: 'ma', date: '2026-01-14', text: 'Проснулась рано, одна. За окном снег и туман, тишина. Долго смотрела, как медленно падает снег, и ничего не делала.', photos: ['winter_field', 'frost_window'], song: 'ambient_D_minor_60', artist: 'Синтез для проверки', title: 'Снег за окном' },
+  { key: 'film', date: '2026-07-18', text: 'Поехали с друзьями на дачу, как в детстве. Купались в реке, жгли костёр до темноты, слушали старые песни на кассетах. Вспомнили школу и смеялись.', photos: ['dacha_house', 'river_sunset', 'campfire'], song: 'folk_G_major_96', artist: 'Синтез для проверки', title: 'Летняя песня', year: '1978' },
+  { key: 'matisse', date: '2026-05-03', text: 'День рождения подруги! Шарики, торт со свечами, все смеялись и танцевали до ночи, было очень весело и шумно.', photos: ['balloons', 'cake', 'party'], song: 'pop_D_major_120', artist: 'Синтез для проверки', title: 'Шарики и свечи' },
+  { key: 'nocturne', date: '2026-09-28', text: 'Долгий тяжёлый день. Вечером шёл дождь, я шла домой одна, фонари расплывались в лужах. Было грустно, но спокойно.', photos: ['rain_street', 'rain_window'], song: 'rain_E_minor_66', artist: 'Синтез для проверки', title: 'Фонари в лужах' },
 ];
 
 (async () => {
@@ -34,9 +44,9 @@ const DAYS = [
     await page.click('nav [data-go="new"]');
     await page.fill('#f-date', d.date);
     await page.fill('#f-text', d.text);
-    await page.setInputFiles('#f-photos', d.photos.map((p) => A(`photos/${p}.jpg`)));
+    await page.setInputFiles('#f-photos', d.photos.map((p) => A(REAL ? `${p}.jpg` : `photos/${p}.jpg`)));
     await page.waitForFunction((n) => document.querySelectorAll('#f-thumbs .thumb').length === n, d.photos.length, { timeout: 30000 });
-    await page.setInputFiles('#f-audio', A(`music/${d.song}.mp3`));
+    await page.setInputFiles('#f-audio', A(REAL ? `${d.song}.mp3` : `music/${d.song}.mp3`));
     await page.waitForFunction(() => /BPM/.test(document.querySelector('#f-audio-info').textContent), null, { timeout: 30000 });
     await page.fill('#f-artist', d.artist); await page.fill('#f-title', d.title);
     if (d.year) await page.fill('#f-year', d.year);

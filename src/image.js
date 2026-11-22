@@ -27,15 +27,15 @@ async function loadBitmap(blob) {
   } finally { URL.revokeObjectURL(url); }
 }
 
-/* уменьшаем до 1600 px по длинной стороне и сохраняем JPEG для дневника */
+/* уменьшаем до 1440 px по длинной стороне (видео — 1080×1920) и сохраняем JPEG для дневника */
 async function normalizePhoto(file) {
   const bmp = await loadBitmap(file);
-  const w = bmp.width, h = bmp.height, k = Math.min(1, 1600 / Math.max(w, h));
+  const w = bmp.width, h = bmp.height, k = Math.min(1, 1440 / Math.max(w, h));
   const c = makeCanvas(w * k, h * k);
   const ctx = c.getContext('2d');
   ctx.imageSmoothingQuality = 'high';
   ctx.drawImage(bmp, 0, 0, c.width, c.height);
-  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.9));
+  const blob = await new Promise((r) => c.toBlob(r, 'image/jpeg', 0.85));
   return { blob, width: c.width, height: c.height, bitmap: c };
 }
 

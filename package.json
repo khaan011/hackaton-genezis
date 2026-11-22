@@ -2,13 +2,14 @@
   "name": "poslevkusie",
   "version": "1.0.0",
   "private": true,
-  "description": "Послевкусие — дневник атмосферы дня. ArtTech, Genesis Hackathon 2026.",
+  "description": "Послевкусие — дневник атмосферы дня: текст, фото, песня или Instagram → видео-воспоминание. ArtTech, Genesis Hackathon 2026.",
   "scripts": {
     "build": "python3 build.py && cp build/index.html index.html",
-    "test": "node test/node_text.js && node test/node_audio.js",
+    "test": "node test/node_text.js && node test/node_insta.js && node test/node_audio.js",
     "assets": "cd test && python3 gen_music.py && python3 gen_photos.py",
     "serve": "python3 -m http.server 8765",
-    "e2e": "FRESH=1 node test/e2e.js"
+    "e2e": "FRESH=1 node test/e2e.js",
+    "e2e:instagram": "node test/ig_e2e.js"
   },
   "devDependencies": {
     "playwright": "^1.48.0"

@@ -113,5 +113,22 @@ for (const d of days) {
   check(!m.bySc.has(at(/о доме/)), '«говорили о доме» остаётся нарисованным');
   check(!/офис/i.test(title) || !/ночь/i.test(title), `время суток и место в названии — из одной части дня («${title}»)`);
 }
+// первая фраза без места берёт место следующей, если та называет его сразу (замечание жюри: «сдача проекта» → «дом»)
+{
+  const T = PV.Text.analyze('Срочная сдача проекта. Ночь в офисе, в наушниках электронная музыка, кофе остыл, код не собирается. Дедлайн в шесть утра.', '2026-11-12');
+  const S = PV.Mood.buildStyle({ text: T, photos: photo({}), music: music({}), seed: 9 });
+  const sc = PV.Scene.plan(T, S, 9);
+  console.log('\n== сдача проекта');
+  sc.forEach((x) => console.log('  ', `«${x.caption}» → ${PV.Scene.describe(x)} [${x.tod}]`));
+  check(sc[0].place === 'office', '«Срочная сдача проекта» — офис, а не дом');
+  const T2 = PV.Text.analyze('Проснулась рано, за окном ещё темно. Потом поехала в офис на автобусе.', '2026-11-12');
+  const sc2 = PV.Scene.plan(T2, PV.Mood.buildStyle({ text: T2, photos: photo({}), music: music({}), seed: 9 }), 9);
+  check(sc2[0].place === 'home', '«Проснулась рано» — всё ещё дом');
+}
+// тональность в кадре — только при уверенности анализа
+{
+  check(PV.Mood.keyShown({ keyName: 'соль мажор', modeConf: 0.45 }) === null, 'при уверенности 0,45 тональность не называется');
+  check(PV.Mood.keyShown({ keyName: 'ми минор', modeConf: 0.8 }) === 'ми минор', 'при уверенности 0,8 тональность называется');
+}
 console.log(fails ? `\nПровалено проверок: ${fails}` : '\nВсе проверки пройдены');
 process.exitCode = fails ? 1 : 0;
